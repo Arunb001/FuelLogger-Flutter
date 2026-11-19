@@ -9,7 +9,7 @@ class AuthProvider extends ChangeNotifier {
   String _errorMessage = '';
 
   User? get user => _user;
-  bool get isAuthenticated => _user != null || _isGuest;
+  bool get isAuthenticated => (_user != null && SupabaseService.hasValidSession) || _isGuest;
   bool get isGuest => _isGuest;
   bool get isLoading => _isLoading;
   String get errorMessage => _errorMessage;
@@ -17,14 +17,18 @@ class AuthProvider extends ChangeNotifier {
 
   AuthProvider() {
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-      _user = data.session?.user;
-      notifyListeners();
+      if (data.session != null) {
+        _user = data.session?.user;
+        _isGuest = false;
+        notifyListeners();
+      }
     });
   }
 
   void continueAsGuest() {
     _isGuest = true;
     _user = null;
+    _errorMessage = '';
     notifyListeners();
   }
 
@@ -32,11 +36,17 @@ class AuthProvider extends ChangeNotifier {
     _setLoading(true);
     try {
       final res = await SupabaseService.signInWithPassword(email: email, password: password);
-      _user = res.user;
-      _isGuest = false;
-      _errorMessage = '';
-      notifyListeners();
-      return true;
+      if (res.session != null && res.user != null) {
+        _user = res.user;
+        _isGuest = false;
+        _errorMessage = '';
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = 'Email verification required. Please check your inbox or sign in with Google.';
+        notifyListeners();
+        return false;
+      }
     } catch (e) {
       _errorMessage = _cleanError(e.toString());
       notifyListeners();
@@ -50,11 +60,22 @@ class AuthProvider extends ChangeNotifier {
     _setLoading(true);
     try {
       final res = await SupabaseService.signUpWithPassword(email: email, password: password);
-      _user = res.user;
-      _isGuest = false;
-      _errorMessage = '';
-      notifyListeners();
-      return true;
+      if (res.session != null && res.user != null) {
+        _user = res.user;
+        _isGuest = false;
+        _errorMessage = '';
+        notifyListeners();
+        return true;
+      } else {
+        // When session is null, check if user was already registered
+        if (res.user != null && (res.user!.identities == null || res.user!.identities!.isEmpty)) {
+          _errorMessage = 'Account already exists. Please sign in with your password or use Google Sign-In.';
+        } else {
+          _errorMessage = 'Account created! Please check your email to confirm before signing in.';
+        }
+        notifyListeners();
+        return false;
+      }
     } catch (e) {
       _errorMessage = _cleanError(e.toString());
       notifyListeners();
@@ -64,13 +85,18 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> sendOtp(String email) async {
+  Future<bool> signInWithGoogle() async {
     _setLoading(true);
     try {
-      await SupabaseService.sendOtp(email);
-      _errorMessage = '';
-      notifyListeners();
-      return true;
+      final res = await SupabaseService.signInWithGoogleNative();
+      if (res != null && res.user != null && res.session != null) {
+        _user = res.user;
+        _isGuest = false;
+        _errorMessage = '';
+        notifyListeners();
+        return true;
+      }
+      return false;
     } catch (e) {
       _errorMessage = _cleanError(e.toString());
       notifyListeners();
@@ -80,18 +106,14 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> verifyOtp(String email, String token) async {
+  Future<bool> resetPassword(String email) async {
     _setLoading(true);
     try {
-      final res = await SupabaseService.verifyOtp(email: email, token: token);
-      _user = res.user;
-      _isGuest = false;
+      await SupabaseService.resetPassword(email);
       _errorMessage = '';
-      notifyListeners();
       return true;
     } catch (e) {
       _errorMessage = _cleanError(e.toString());
-      notifyListeners();
       return false;
     } finally {
       _setLoading(false);
@@ -129,11 +151,20 @@ class AuthProvider extends ChangeNotifier {
       return 'Incorrect email or password.';
     }
     if (raw.contains('over_email_send_rate_limit') || raw.contains('rate limit')) {
-      return 'Email limit reached (3-4/hr). Please sign in with Password.';
+      return 'Rate limit reached. Please sign in with Google or try again later.';
     }
-    if (raw.contains('User already registered')) {
-      return 'Account already exists. Please sign in.';
+    if (raw.contains('User already registered') || raw.contains('already exists')) {
+      return 'Account already exists. Please sign in with your password.';
     }
-    return raw.replaceAll('AuthException', '').replaceAll('Exception:', '').trim();
+    if (raw.contains('network_error') || raw.contains('SocketException')) {
+      return 'Network connection issue. You can continue in Guest (Offline) Mode.';
+    }
+    return raw
+        .replaceAll('AuthException', '')
+        .replaceAll('AuthApiException', '')
+        .replaceAll('Exception:', '')
+        .replaceAll('PostgrestException', '')
+        .replaceAll('message:', '')
+        .trim();
   }
 }

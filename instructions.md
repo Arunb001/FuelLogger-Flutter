@@ -9,9 +9,10 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
+- **Current Version**: `Version - 2.3.0 (Build 6)`
 - **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
 - **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
-- **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production)
+- **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
 - **Local Persistence**: `shared_preferences` for vehicle preferences, customization, and instant startup cache
 - **Flavors**:
   - **Dev**: Package `com.fuellogger.app.dev`, App Name `"Fuel Logger (DEV)"`
@@ -23,35 +24,42 @@
 ## 2. Implemented Features & Architecture
 
 ### 1. Authentication (`lib/views/auth/login_view.dart`)
-- **Direct Password Sign-In & Registration**: Fast 150ms login directly against PostgreSQL, avoiding free-tier email rate limits.
-- **OTP / Magic Link Verification**: 6-digit verification code input with automatic deep linking (`fuellogger://auth`).
+- **Native Google Account Sign-In**: Integrated `google_sign_in` using the Android Account Manager sheet.
+- **Direct Password Sign-In & Registration**: Fast login directly against PostgreSQL with strict session validation.
+- **Password Reset**: In-app password reset modal dialog.
+- **Offline Guest Mode**: Instant access with local cache.
 - **Sanitized Errors**: No raw PostgREST error codes (e.g. `PGRST303`); clear human-readable notices.
 
 ### 2. Home Dashboard (`lib/views/home/home_view.dart`)
-- **Dynamic Vehicle Banner**: Renders active vehicle name, model, plate, custom color gradient, and vehicle icon (`directions_car`, `two_wheeler`, etc.).
+- **Dynamic Vehicle Banner**: Renders active vehicle name, model, custom color gradient, and vehicle icon.
 - **Top 2 Metric Tiles**: Total Average Mileage (`km/l`) and Total Driven Distance (`km`).
-- **Quick Action Cards**: "Log New Fill-Up" and "Calculations & Analytics".
-- **Vehicle Switcher**: Instant bottom sheet switcher to switch between multiple vehicles.
+- **Quick Action Cards**: "Log New Fill-Up", "View Calculations", and "Manage Logs".
+- **Vehicle Switcher**: Bottom sheet switcher with vehicle list and direct "+ Add New Vehicle" button.
+- **Pull-To-Refresh**: Native pull-down gesture to refresh garage and logs.
 
 ### 3. Upload Fill-Up (`lib/views/upload/upload_view.dart`)
 - **Automatic S.No / Run #**: Sequentially increments from the last logged run.
 - **Full vs. Partial Fill Modes**: Toggle buttons for full tank vs. partial fill.
 - **Strict Numeric Inputs**: Only numeric and decimal characters accepted.
 - **Instant Telemetry Preview**: Calculates distance, mileage, and cost-per-km before submitting.
+- **Foolproof Saving**: Cloud sync with instant offline local fallback.
 
 ### 4. Calculations & Breakdown (`lib/views/calculations/calculations_view.dart`)
 - **Full 16-Column Telemetry**: Average mileage, total cost, total distance, total fuel consumed, average cost per km, and fuel efficiency.
-- **Fuel Type Breakdown**: Aggregates usage, litres, and total spend by fuel grade (e.g., Petrol, XP95, Shell V-Power, Diesel).
+- **Fuel Type Breakdown**: Aggregates usage, litres, and total spend by fuel grade.
+- **Pull-To-Refresh**: Scroll-down gesture to reload telemetry.
 
 ### 5. Log History (`lib/views/logs/logs_view.dart`)
 - Reverse chronological display of all fill-ups.
 - Tap to edit any previous fill-up entry.
-- Swipe to delete with confirmation.
+- Swipe or tap to delete with confirmation.
+- **Pull-To-Refresh**: Gesture-based refresh on both empty and filled list states.
 
 ### 6. Settings & Garage Management (`lib/views/settings/settings_view.dart`)
 - Vehicle customization: rename, change icon, choose theme color.
 - Add new vehicle or delete vehicle.
 - Password change and direct sign-out.
+- Version display: Shows clean `Version - 2.3.0 (Build 6)`.
 
 ---
 
@@ -75,3 +83,35 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
   ====================================================================================
 -->
 
+### Completed in Version 2.3.0 (Build 6):
+
+1. **Log-in page**:
+   - [x] Only show "Version - #". Removed all mentions of Flutter, Supabase, and DB. Now displays `Version - 2.3.0 (Build 6)`.
+   - [x] Added Google native account manager sign in (`google_sign_in` with Android account sheet).
+   - [x] Fixed invisible text on sign-in and action buttons (`foregroundColor: Colors.white` added across theme and views).
+   - [x] Resolved password account creation and sign-in session handling. Prevented fake session login on existing unconfirmed accounts and added "Forgot Password?" dialog.
+   - [x] Removed OTP / email link sign-in completely as requested.
+
+2. **Home page**:
+   - [x] Removed top-right refresh icon button.
+   - [x] Enabled pull-to-refresh (`RefreshIndicator` with `AlwaysScrollableScrollPhysics`).
+   - [x] Fixed "Switch Vehicle" dialog: vehicles list is always populated, active vehicle is selected, and an inline `+ Add New Vehicle` option is included.
+
+3. **Settings page**:
+   - [x] Fixed renaming vehicle: updates active vehicle in memory, in local cache, and syncs to Supabase.
+   - [x] Fixed "Add New Vehicle": handles both cloud-authenticated and offline/guest modes cleanly.
+   - [x] Only show `Version - 2.3.0 (Build 6)`; stripped all DB/engine references.
+
+4. **Upload page**:
+   - [x] Fixed "Failed to save log": handles empty/local vehicle IDs and syncs with cloud or local cache without crashing.
+   - [x] Fixed missing "Upload Fuel Log" text on submit button with explicit high-contrast white text.
+
+5. **Logs page**:
+   - [x] Fixed blank red button on empty logs screen; now properly displays "Log First Fill-Up" with icon and white text.
+   - [x] Enabled pull-to-refresh.
+
+6. **All pages**:
+   - [x] Enabled pull-down / scroll-up refresh on Home, Calculations, and Logs pages.
+
+7. **App Logo**:
+   - [x] Designed and generated high-resolution modern AMOLED fuel pump app launcher icons across all mipmap resolutions (`mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`) and `assets/logo.png`.

@@ -49,7 +49,8 @@ class AppTheme {
         primary: primary,
         secondary: mileageGreen,
         surface: cardBg,
-        background: scaffoldBg,
+        onSurface: Colors.white,
+        onPrimary: Colors.white,
       ),
       textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
       appBarTheme: AppBarTheme(
@@ -68,6 +69,26 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
           side: const BorderSide(color: borderColor, width: 0.8),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          foregroundColor: Colors.white,
+          backgroundColor: primary,
+          textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white,
+          side: const BorderSide(color: borderColor),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: primary,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(

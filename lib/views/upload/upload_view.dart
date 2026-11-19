@@ -54,7 +54,6 @@ class _UploadViewState extends State<UploadView> {
       _fillFlag = mode;
       final garage = context.read<GarageProvider>();
       if (mode == 'P') {
-        // Re-use last run id for partial fill
         _snoController.text = (garage.summary.lastSno > 0 ? garage.summary.lastSno : 1).toString();
       } else {
         _snoController.text = garage.summary.nextSno.toString();
@@ -112,8 +111,11 @@ class _UploadViewState extends State<UploadView> {
                   Navigator.pop(ctx);
                 }
               },
-              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-              child: const Text('Add'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Add', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -144,13 +146,14 @@ class _UploadViewState extends State<UploadView> {
           fuelFillFlag: _fillFlag,
         );
 
+    if (!mounted) return;
     setState(() => _isUploading = false);
 
     if (ok) {
-      showCustomSnackBar(context, '✅ Fill-up log saved to cloud!');
+      showCustomSnackBar(context, 'Fill-up log saved successfully!');
       Navigator.pop(context);
     } else {
-      showCustomSnackBar(context, '⚠️ Failed to save log. Please try again.', isError: true);
+      showCustomSnackBar(context, 'Failed to save log. Please try again.', isError: true);
     }
   }
 
@@ -261,7 +264,10 @@ class _UploadViewState extends State<UploadView> {
                         ),
                         items: [
                           ...garage.fuelTypes.map((ft) => DropdownMenuItem(value: ft, child: Text(ft))),
-                          const DropdownMenuItem(value: '__add__', child: Text('➕ Add Custom Fuel Type...', style: TextStyle(color: AppTheme.distanceBlue))),
+                          const DropdownMenuItem(
+                            value: '__add__',
+                            child: Text('➕ Add Custom Fuel Type...', style: TextStyle(color: AppTheme.distanceBlue)),
+                          ),
                         ],
                         onChanged: (val) {
                           if (val == '__add__') {
@@ -383,8 +389,10 @@ class _UploadViewState extends State<UploadView> {
                 onPressed: _isUploading ? null : _submitForm,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 2,
                 ),
                 child: _isUploading
                     ? const SizedBox(
@@ -394,7 +402,11 @@ class _UploadViewState extends State<UploadView> {
                       )
                     : const Text(
                         'Upload Fuel Log',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
               ),
               const SizedBox(height: 20),

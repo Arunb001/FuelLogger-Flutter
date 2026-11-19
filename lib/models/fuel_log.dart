@@ -88,4 +88,48 @@ class FuelLog {
       'fuel_fill_flag': fuelFillFlag,
     };
   }
+
+  FuelLog copyWith({
+    String? id,
+    String? userId,
+    String? vehicleId,
+    int? runId,
+    String? date,
+    String? fuelType,
+    double? fuelDensity,
+    double? fuelCost,
+    double? litersToFill,
+    double? costPerLtr,
+    int? fromOdometer,
+    int? toOdometer,
+    double? distanceTraveled,
+    double? fuelConsumed,
+    double? calculatedMileage,
+    double? costPerKm,
+    String? fuelFillFlag,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return FuelLog(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      vehicleId: vehicleId ?? this.vehicleId,
+      runId: runId ?? this.runId,
+      date: date ?? this.date,
+      fuelType: fuelType ?? this.fuelType,
+      fuelDensity: fuelDensity ?? this.fuelDensity,
+      fuelCost: fuelCost ?? this.fuelCost,
+      litersToFill: litersToFill ?? this.litersToFill,
+      costPerLtr: costPerLtr ?? this.costPerLtr,
+      fromOdometer: fromOdometer ?? this.fromOdometer,
+      toOdometer: toOdometer ?? this.toOdometer,
+      distanceTraveled: distanceTraveled ?? this.distanceTraveled,
+      fuelConsumed: fuelConsumed ?? this.fuelConsumed,
+      calculatedMileage: calculatedMileage ?? this.calculatedMileage,
+      costPerKm: costPerKm ?? this.costPerKm,
+      fuelFillFlag: fuelFillFlag ?? this.fuelFillFlag,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 }

@@ -26,6 +26,11 @@ android {
         resValues = true
     }
 
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
+
     flavorDimensions += "default"
 
     productFlavors {

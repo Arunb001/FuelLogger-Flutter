@@ -27,7 +27,7 @@ Future<void> main() async {
 }
 
 class FuelLoggerApp extends StatelessWidget {
-  const FuelLoggerApp({Key? key}) : super(key: key);
+  const FuelLoggerApp({super.key});
 
   @override
   Widget build(BuildContext context) {

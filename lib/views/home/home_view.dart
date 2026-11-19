@@ -55,13 +55,6 @@ class _HomeViewState extends State<HomeView> {
             ],
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Sync Data',
-            onPressed: garage.isLoading ? null : () => garage.loadGarage(),
-          ),
-        ],
       ),
       body: RefreshIndicator(
         onRefresh: () => garage.loadGarage(),

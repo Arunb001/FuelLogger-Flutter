@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/garage_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../config/env.dart';
 import '../../config/version.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_snackbar.dart';
@@ -42,32 +41,43 @@ class _SettingsViewState extends State<SettingsView> {
     final garage = context.read<GarageProvider>();
     final newName = _renameController.text.trim();
 
-    if (newName.isNotEmpty && newName != garage.activeVehicleName) {
+    if (newName.isNotEmpty) {
       await garage.renameActiveVehicle(newName);
     }
 
     await garage.updateCustomization(iconKey: _selectedIcon, colorKey: _selectedColor);
-    showCustomSnackBar(context, '✅ Vehicle customization saved!');
+
+    if (mounted) {
+      _renameController.text = garage.activeVehicleName;
+      showCustomSnackBar(context, 'Vehicle customization saved!');
+    }
   }
 
   Future<void> _addNewVehicle() async {
     final name = _addVehicleController.text.trim();
     if (name.isEmpty) return;
 
-    final ok = await context.read<GarageProvider>().addVehicle(name);
+    final garage = context.read<GarageProvider>();
+    final ok = await garage.addVehicle(name);
+    if (!mounted) return;
+
     if (ok) {
       _addVehicleController.clear();
-      _renameController.text = name;
-      showCustomSnackBar(context, '✅ New vehicle \'$name\' created!');
+      _renameController.text = garage.activeVehicleName;
+      setState(() {
+        _selectedIcon = garage.activeVehicle?.iconKey ?? 'bike';
+        _selectedColor = garage.activeVehicle?.colorKey ?? 'red';
+      });
+      showCustomSnackBar(context, 'New vehicle \'$name\' created!');
     } else {
-      showCustomSnackBar(context, '⚠️ Failed to create vehicle.', isError: true);
+      showCustomSnackBar(context, 'Failed to create vehicle.', isError: true);
     }
   }
 
   void _showDeleteVehicleDialog() {
     final garage = context.read<GarageProvider>();
     if (garage.vehicles.length <= 1) {
-      showCustomSnackBar(context, '⚠️ Garage safeguard: You must have at least 1 vehicle.', isError: true);
+      showCustomSnackBar(context, 'Garage safeguard: You must have at least 1 vehicle.', isError: true);
       return;
     }
 
@@ -87,13 +97,16 @@ class _SettingsViewState extends State<SettingsView> {
               onPressed: () async {
                 Navigator.pop(ctx);
                 final ok = await garage.deleteVehicle(target);
-                if (ok) {
+                if (mounted && ok) {
                   _renameController.text = garage.activeVehicleName;
-                  showCustomSnackBar(context, '✅ Vehicle deleted.');
+                  showCustomSnackBar(context, 'Vehicle deleted.');
                 }
               },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade900),
-              child: const Text('Delete Permanently'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade900,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Delete Permanently', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -112,14 +125,14 @@ class _SettingsViewState extends State<SettingsView> {
             children: const [
               Icon(Icons.key, color: AppTheme.costAmber, size: 22),
               SizedBox(width: 8),
-              Text('Set Account Password'),
+              Text('Set Account Password', style: TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'Set a password to sign in instantly on any device without checking your email inbox.',
+                'Set a password to sign in on any device without checking your email inbox.',
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
               const SizedBox(height: 12),
@@ -142,14 +155,19 @@ class _SettingsViewState extends State<SettingsView> {
                 }
                 Navigator.pop(ctx);
                 final ok = await context.read<AuthProvider>().updatePassword(pw);
-                if (ok) {
-                  showCustomSnackBar(context, '✅ Password updated successfully!');
-                } else {
-                  showCustomSnackBar(context, '⚠️ Failed to update password.', isError: true);
+                if (mounted) {
+                  if (ok) {
+                    showCustomSnackBar(context, 'Password updated successfully!');
+                  } else {
+                    showCustomSnackBar(context, 'Failed to update password.', isError: true);
+                  }
                 }
               },
-              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-              child: const Text('Save Password'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Save Password', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -163,7 +181,7 @@ class _SettingsViewState extends State<SettingsView> {
       builder: (ctx) {
         return AlertDialog(
           backgroundColor: AppTheme.cardBg,
-          title: const Text('Sign Out?'),
+          title: const Text('Sign Out?', style: TextStyle(fontWeight: FontWeight.bold)),
           content: const Text('Are you sure you want to sign out of Fuel Logger?'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
@@ -171,13 +189,18 @@ class _SettingsViewState extends State<SettingsView> {
               onPressed: () async {
                 Navigator.pop(ctx);
                 await context.read<AuthProvider>().signOut();
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const LoginView()),
-                  (route) => false,
-                );
+                if (mounted) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LoginView()),
+                    (route) => false,
+                  );
+                }
               },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade900),
-              child: const Text('Sign Out'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade900,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Sign Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -276,9 +299,16 @@ class _SettingsViewState extends State<SettingsView> {
                       onPressed: _saveCustomization,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-                      child: const Text('Save Customization', style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: const Center(
+                        child: Text(
+                          'Save Customization',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -301,7 +331,7 @@ class _SettingsViewState extends State<SettingsView> {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    const Text('Creates a new isolated vehicle garage in your cloud database:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    const Text('Creates a new vehicle profile in your garage:', style: TextStyle(fontSize: 12, color: Colors.grey)),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _addVehicleController,
@@ -311,14 +341,15 @@ class _SettingsViewState extends State<SettingsView> {
                         prefixIcon: Icon(Icons.two_wheeler, size: 18),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     ElevatedButton.icon(
                       onPressed: _addNewVehicle,
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Create Vehicle'),
+                      icon: const Icon(Icons.add, size: 18, color: Colors.black),
+                      label: const Text('Create Vehicle', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.mileageGreen,
                         foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
@@ -347,9 +378,10 @@ class _SettingsViewState extends State<SettingsView> {
                       onPressed: _showDeleteVehicleDialog,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red.shade900,
+                        foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
-                      child: const Text('Delete'),
+                      child: const Text('Delete', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -379,8 +411,8 @@ class _SettingsViewState extends State<SettingsView> {
                         if (!auth.isGuest) ...[
                           ElevatedButton.icon(
                             onPressed: _showSetPasswordDialog,
-                            icon: const Icon(Icons.key, size: 16),
-                            label: const Text('Set Password'),
+                            icon: const Icon(Icons.key, size: 16, color: Colors.white),
+                            label: const Text('Set Password', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppTheme.surfaceHigh,
                               foregroundColor: Colors.white,
@@ -391,8 +423,11 @@ class _SettingsViewState extends State<SettingsView> {
                         ],
                         ElevatedButton.icon(
                           onPressed: _showSignOutDialog,
-                          icon: const Icon(Icons.logout, size: 16),
-                          label: Text(auth.isGuest ? 'Exit Guest Mode' : 'Sign Out'),
+                          icon: const Icon(Icons.logout, size: 16, color: Colors.white),
+                          label: Text(
+                            auth.isGuest ? 'Exit Guest Mode' : 'Sign Out',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.red.shade900,
                             foregroundColor: Colors.white,
@@ -417,7 +452,7 @@ class _SettingsViewState extends State<SettingsView> {
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Developer Support • Email id: arunbaalajiabs@gmail.com',
+                        'Developer Support • arunbaalajiabs@gmail.com',
                         style: TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                     ),
@@ -425,26 +460,13 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
-            // Version Footer
+            // Version Footer - Only "Version - #"
             Center(
-              child: Column(
-                children: [
-                  Text(
-                    '${AppConfig.appName} • ${AppVersion.display}',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    'Environment: ${AppConfig.flavor.toUpperCase()} • Cloud Edition',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: AppConfig.isDev ? AppTheme.costAmber : Colors.grey,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+              child: Text(
+                AppVersion.display,
+                style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500),
               ),
             ),
             const SizedBox(height: 20),
