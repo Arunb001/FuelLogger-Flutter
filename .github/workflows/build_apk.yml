@@ -31,10 +31,10 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Build DEV APK (Flavor: dev)
+      - name: Build DEV APK
         run: flutter build apk --flavor dev -t lib/main_dev.dart --release
 
-      - name: Build PROD APK (Flavor: prod)
+      - name: Build PROD APK
         run: flutter build apk --flavor prod -t lib/main_prod.dart --release
 
       - name: Upload Dev APK
