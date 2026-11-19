@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/garage_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../config/env.dart';
+import '../../config/version.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_snackbar.dart';
 import '../auth/login_view.dart';
@@ -431,7 +432,7 @@ class _SettingsViewState extends State<SettingsView> {
               child: Column(
                 children: [
                   Text(
-                    '${AppConfig.appName} • Version 1.0.0 (Native Flutter)',
+                    '${AppConfig.appName} • ${AppVersion.display}',
                     style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 3),

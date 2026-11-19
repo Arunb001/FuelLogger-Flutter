@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/garage_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../config/version.dart';
 import '../../widgets/custom_snackbar.dart';
 import '../home/home_view.dart';
 
@@ -300,9 +301,9 @@ class _LoginViewState extends State<LoginView> {
                 ),
 
                 const SizedBox(height: 28),
-                const Text(
-                  'Version 1.0.0 (Native Flutter) • Supabase Cloud',
-                  style: TextStyle(color: Colors.grey, fontSize: 11),
+                Text(
+                  '${AppVersion.fullDisplay} • Supabase Cloud',
+                  style: const TextStyle(color: Colors.grey, fontSize: 11),
                 ),
               ],
             ),
