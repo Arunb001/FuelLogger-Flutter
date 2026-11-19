@@ -1,0 +1,25 @@
+# Flutter & Dart gitignore
+.dart_tool/
+.packages
+build/
+.pub-cache/
+.pub/
+
+# Android
+android/**/gradle-wrapper.jar
+.gradle/
+local.properties
+**/android/**/workspace.xml
+**/android/**/tasks.xml
+**/android/**/gradle.xml
+**/android/**/dictionaries
+**/android/**/libraries
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+
+# Local env secrets (if any)
+.env
+*.local.dart
