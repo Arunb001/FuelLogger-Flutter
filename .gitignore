@@ -4,9 +4,10 @@
 build/
 .pub-cache/
 .pub/
+.flutter-plugins
+.flutter-plugins-dependencies
 
 # Android
-android/**/gradle-wrapper.jar
 .gradle/
 local.properties
 **/android/**/workspace.xml
