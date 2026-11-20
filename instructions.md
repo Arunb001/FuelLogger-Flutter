@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
-- **Current Version**: `Version - 2.5.0 (Build 8)`
+- **Current Version**: `Version - 2.6.0 (Build 9)`
 - **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
 - **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
@@ -159,3 +159,15 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
     - [x] Completely removed Guest Mode on Production (`AppConfig.isDev == false`).
     - [x] Preserved Guest Mode on DEV (`AppConfig.isDev == true`).
     - [x] Production APK build withheld per user instructions (building DEV APK only until final confirmation).
+
+### Completed in Version 2.6.0 (Build 9):
+
+16. **Log-in page & Password Reset**:
+    - [x] **Password Sign-In**: Confirmed working after updating user password hash in Supabase DB via query.
+    - [x] **Handled `otp_expired` (403) Link Expiration**: Explained and handled single-use link consumption. When the email link is tapped, Chrome consumes the one-time token and redirects to `localhost:3000/#access_token=...`. If the user pastes the already-used email link, the app surfaces a clear, friendly explanation.
+    - [x] **URL Normalization**: Enhanced `resetPasswordWithPastedLink` to parse and accept scheme-less browser URLs (`localhost:3000/#access_token=...`), URL fragments, or fresh direct email links.
+
+17. **Production App & Database Connectivity**:
+    - [x] **Database Verification**: Confirmed that the Production app (`EnvProd`) connects to the exact same old database (`https://hjprefmnofrqyjocihto.supabase.co`) used by the Python application (`Fuelapp/utils/supabase_client.py`), preserving all existing vehicle records, fill-up logs, and telemetry.
+    - [x] **Built Production Release APK**: Compiled standalone `app-prod-release.apk` with Guest Mode disabled and native Google Sign-In active.
+    - [x] **Built DEV Release APK**: Compiled updated `app-dev-release.apk` for testing.

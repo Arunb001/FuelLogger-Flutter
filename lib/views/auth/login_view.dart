@@ -191,14 +191,15 @@ class _LoginViewState extends State<LoginView> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: const [
                             Text(
-                              'How to reset using the email link:',
+                              'How to reset using the link:',
                               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppTheme.costAmber),
                             ),
                             SizedBox(height: 4),
                             Text(
-                              '1. Check your email for "Reset your password".\n'
-                              '2. Long-press the "Reset password" button/link and choose "Copy link address" (or copy the address bar from Chrome if it showed localhost:3000).\n'
-                              '3. Paste it below and choose your new password.',
+                              '• If you clicked the email link and Chrome showed "localhost:3000":\n'
+                              '  Copy the URL from Chrome\'s address bar (localhost:3000/#access_token=...) and paste it below.\n'
+                              '• If copying directly from email:\n'
+                              '  Long-press "Reset password" -> "Copy link address" and paste below without opening in browser first.',
                               style: TextStyle(fontSize: 11, color: Colors.white70, height: 1.3),
                             ),
                           ],

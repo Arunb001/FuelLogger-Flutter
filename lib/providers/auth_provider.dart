@@ -126,7 +126,11 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     _setLoading(true);
     try {
-      final clean = rawUrl.trim();
+      String clean = rawUrl.trim();
+      // Ensure scheme exists for Uri.parse if user pasted localhost:3000/#access_token=...
+      if (!clean.startsWith('http://') && !clean.startsWith('https://') && !clean.startsWith('fuellogger://') && !clean.startsWith('com.fuellogger')) {
+        clean = 'http://$clean';
+      }
       final uri = Uri.parse(clean);
 
       // 1. Try Supabase built-in getSessionFromUrl
@@ -147,16 +151,17 @@ class AuthProvider extends ChangeNotifier {
       }
       if (fragment.isNotEmpty) {
         final q = Uri.splitQueryString(fragment);
-        final accessToken = q['access_token'];
         final refreshToken = q['refresh_token'];
-        if (accessToken != null && accessToken.isNotEmpty) {
-          final res = await Supabase.instance.client.auth.setSession(refreshToken ?? accessToken);
-          await Supabase.instance.client.auth.updateUser(UserAttributes(password: newPassword.trim()));
-          _user = res.user ?? SupabaseService.currentUser;
-          _isGuest = false;
-          _errorMessage = '';
-          notifyListeners();
-          return true;
+        if (refreshToken != null && refreshToken.isNotEmpty) {
+          try {
+            await Supabase.instance.client.auth.setSession(refreshToken);
+            await Supabase.instance.client.auth.updateUser(UserAttributes(password: newPassword.trim()));
+            _user = SupabaseService.currentUser;
+            _isGuest = false;
+            _errorMessage = '';
+            notifyListeners();
+            return true;
+          } catch (_) {}
         }
       }
 
@@ -170,7 +175,7 @@ class AuthProvider extends ChangeNotifier {
         );
         if (res.session != null) {
           await Supabase.instance.client.auth.updateUser(UserAttributes(password: newPassword.trim()));
-          _user = res.user ?? SupabaseService.currentUser;
+          _user = res.session?.user ?? SupabaseService.currentUser;
           _isGuest = false;
           _errorMessage = '';
           notifyListeners();
@@ -254,6 +259,9 @@ class AuthProvider extends ChangeNotifier {
   String _cleanError(String raw) {
     if (raw.contains('invalid_credentials') || raw.contains('Invalid login credentials')) {
       return 'Incorrect email or password.';
+    }
+    if (raw.contains('otp_expired') || raw.contains('Email link is invalid or has expired')) {
+      return 'This recovery link has already been used or expired. If you opened it in Chrome, please copy the URL from Chrome\'s address bar (localhost:3000/#access_token=...) and paste it here, or request a fresh link.';
     }
     if (raw.contains('ApiException: 10') || raw.contains('sign_in_failed') || raw.contains('api.ApiException')) {
       return 'Google Sign-In configuration error (unregistered SHA-1). Please sign in with password or use Guest Mode.';
