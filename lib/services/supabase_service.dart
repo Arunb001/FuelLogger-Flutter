@@ -38,29 +38,47 @@ class SupabaseService {
   }
 
   static Future<AuthResponse?> signInWithGoogleNative() async {
-    final GoogleSignIn googleSignIn = GoogleSignIn(
-      serverClientId: AppConfig.googleWebClientId,
-      scopes: ['email', 'profile'],
-    );
-
-    final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-    if (googleUser == null) {
-      return null; // User cancelled the sign-in sheet
-    }
-
-    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-    final idToken = googleAuth.idToken;
-    final accessToken = googleAuth.accessToken;
-
-    if (idToken != null) {
-      return await client.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: accessToken,
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        serverClientId: AppConfig.googleWebClientId,
+        scopes: ['email', 'profile'],
       );
-    } else {
-      throw Exception('Could not retrieve Google ID token. Please ensure Google Play Services is available or sign in with password.');
+
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        return null; // User cancelled the sign-in sheet
+      }
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      final accessToken = googleAuth.accessToken;
+
+      if (idToken != null) {
+        return await client.auth.signInWithIdToken(
+          provider: OAuthProvider.google,
+          idToken: idToken,
+          accessToken: accessToken,
+        );
+      }
+    } catch (e) {
+      // If native sign-in fails (e.g. SHA-1 not yet added in Google Cloud Console),
+      // smoothly fall back to Supabase Web OAuth which now works because fuellogger://
+      // was whitelisted in Supabase Redirect URLs (Option 1).
+      if (!AppConfig.isDev) {
+        try {
+          await client.auth.signInWithOAuth(
+            OAuthProvider.google,
+            redirectTo: 'fuellogger://auth',
+          );
+          return null;
+        } catch (_) {
+          rethrow;
+        }
+      } else {
+        rethrow;
+      }
     }
+    return null;
   }
 
   static Future<void> resetPassword(String email) async {
