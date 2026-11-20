@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/garage_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -17,6 +18,7 @@ class SettingsView extends StatefulWidget {
 class _SettingsViewState extends State<SettingsView> {
   final _renameController = TextEditingController();
   final _addVehicleController = TextEditingController();
+  final _addFuelTypeController = TextEditingController();
 
   String _selectedIcon = 'bike';
   String _selectedColor = 'red';
@@ -34,6 +36,7 @@ class _SettingsViewState extends State<SettingsView> {
   void dispose() {
     _renameController.dispose();
     _addVehicleController.dispose();
+    _addFuelTypeController.dispose();
     super.dispose();
   }
 
@@ -208,6 +211,87 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
+  void _showExportDialog(GarageProvider garage) {
+    final logs = garage.fuelLogs;
+    if (logs.isEmpty) {
+      showCustomSnackBar(context, 'No fuel logs available to export.', isError: true);
+      return;
+    }
+
+    final StringBuffer csv = StringBuffer();
+    csv.writeln('Run #,Date,Fuel Type,Density (kg/m3),Cost (INR),Litres Filled,Cost/Litre,From Odometer,To Odometer,Distance Traveled (KM),Fuel Consumed (L),Calculated Mileage (KM/L),Cost/KM,Fill Flag');
+
+    for (final l in logs) {
+      csv.writeln('${l.runId},${l.date},"${l.fuelType}",${l.fuelDensity},${l.fuelCost},${l.litersToFill},${l.costPerLtr},${l.fromOdometer},${l.toOdometer},${l.distanceTraveled},${l.fuelConsumed},${l.calculatedMileage},${l.costPerKm},${l.fuelFillFlag}');
+    }
+
+    final csvText = csv.toString();
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: AppTheme.cardBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: const [
+              Icon(Icons.file_download_done, color: AppTheme.mileageGreen, size: 22),
+              SizedBox(width: 8),
+              Text('Exported CSV Data', style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Vehicle: ${garage.activeVehicleName} • ${logs.length} entries',
+                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  height: 180,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceHigh,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppTheme.borderColor),
+                  ),
+                  child: SingleChildScrollView(
+                    child: SelectableText(
+                      csvText,
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.white70),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: csvText));
+                Navigator.pop(ctx);
+                showCustomSnackBar(context, 'CSV copied to clipboard (${logs.length} logs)!');
+              },
+              icon: const Icon(Icons.copy, size: 16, color: Colors.black),
+              label: const Text('Copy CSV', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.mileageGreen,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final garage = context.watch<GarageProvider>();
@@ -359,7 +443,118 @@ class _SettingsViewState extends State<SettingsView> {
             ),
             const SizedBox(height: 16),
 
-            // Card 3: Delete Vehicle (Danger zone)
+            // Card 3: Manage Fuel Types
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(Icons.local_gas_station, color: AppTheme.costAmber, size: 20),
+                        SizedBox(width: 8),
+                        Text('Manage Fuel Types', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Text('Active fuel options across upload & calculations:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: garage.fuelTypes.map((ft) {
+                        final canDelete = garage.fuelTypes.length > 1;
+                        return Chip(
+                          backgroundColor: AppTheme.surfaceHigh,
+                          label: Text(ft, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                          deleteIcon: canDelete ? const Icon(Icons.close, size: 16, color: Colors.redAccent) : null,
+                          onDeleted: canDelete
+                              ? () {
+                                  garage.removeCustomFuelType(ft);
+                                  showCustomSnackBar(context, 'Removed fuel type \'$ft\'');
+                                }
+                              : null,
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _addFuelTypeController,
+                            decoration: const InputDecoration(
+                              labelText: 'New Fuel Type Name',
+                              hintText: 'e.g. Shell V-Power',
+                              prefixIcon: Icon(Icons.add, size: 18),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        ElevatedButton(
+                          onPressed: () {
+                            final name = _addFuelTypeController.text.trim();
+                            if (name.isNotEmpty) {
+                              garage.addCustomFuelType(name);
+                              _addFuelTypeController.clear();
+                              showCustomSnackBar(context, 'Added fuel type \'$name\'!');
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.distanceBlue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: const Text('Add', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Card 4: Export Vehicle Data
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(Icons.file_download_outlined, color: AppTheme.mileageGreen, size: 20),
+                        SizedBox(width: 8),
+                        Text('Export Vehicle Data', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Export all logs for \'${garage.activeVehicleName}\' to CSV format:',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 14),
+                    ElevatedButton.icon(
+                      onPressed: () => _showExportDialog(garage),
+                      icon: const Icon(Icons.download, size: 18, color: Colors.black),
+                      label: const Text('Export Logs (CSV)', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.mileageGreen,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Card 5: Delete Vehicle (Danger zone)
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),

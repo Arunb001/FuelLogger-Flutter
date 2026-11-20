@@ -120,6 +120,41 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> verifyOtpAndSetPassword({
+    required String email,
+    required String token,
+    required String newPassword,
+  }) async {
+    _setLoading(true);
+    try {
+      final res = await Supabase.instance.client.auth.verifyOTP(
+        email: email.trim(),
+        token: token.trim(),
+        type: OtpType.recovery,
+      );
+      if (res.session != null) {
+        await Supabase.instance.client.auth.updateUser(
+          UserAttributes(password: newPassword.trim()),
+        );
+        _user = res.user ?? SupabaseService.currentUser;
+        _isGuest = false;
+        _errorMessage = '';
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = 'Invalid or expired 6-digit recovery code.';
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = _cleanError(e.toString());
+      notifyListeners();
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   Future<bool> updatePassword(String newPassword) async {
     _setLoading(true);
     try {
@@ -149,6 +184,9 @@ class AuthProvider extends ChangeNotifier {
   String _cleanError(String raw) {
     if (raw.contains('invalid_credentials') || raw.contains('Invalid login credentials')) {
       return 'Incorrect email or password.';
+    }
+    if (raw.contains('ApiException: 10') || raw.contains('sign_in_failed') || raw.contains('api.ApiException')) {
+      return 'Google Sign-In configuration error (unregistered SHA-1). Please sign in with password or use Guest Mode.';
     }
     if (raw.contains('over_email_send_rate_limit') || raw.contains('rate limit')) {
       return 'Rate limit reached. Please sign in with Google or try again later.';

@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
-- **Current Version**: `Version - 2.3.0 (Build 6)`
+- **Current Version**: `Version - 2.4.0 (Build 7)`
 - **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
 - **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
@@ -115,3 +115,28 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
 
 7. **App Logo**:
    - [x] Designed and generated high-resolution modern AMOLED fuel pump app launcher icons across all mipmap resolutions (`mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`) and `assets/logo.png`.
+
+### Completed in Version 2.4.0 (Build 7):
+
+8. **App logo**:
+   - [x] Restored authentic single-color app logo from `Fuelapp/assets/icon.png`. Generated high-resolution Android launcher mipmap icons (`ic_launcher.png` and `ic_launcher_round.png`) across all densities (`mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`) and updated `assets/logo.png`.
+
+9. **Log-in page**:
+   - [x] Removed "G" logo from "Sign in with Google" button; now displays a clean, centered text button.
+   - [x] Removed "Telemetry" from app slogan; updated to "Mileage Tracker".
+   - [x] Handled Google Sign-In `ApiException: 10` gracefully with automatic fallback to Supabase browser OAuth and clear, friendly guidance on SHA-1 fingerprint registration.
+   - [x] Resolved password sign-in / account already exists confusion: clarified that the email was originally registered via Google OAuth without a password hash.
+   - [x] Resolved `localhost:3000` password reset: Implemented in-app 6-digit recovery code verification (`verifyOTP` + `updateUser`), enabling users to reset passwords directly inside the app on Android without needing a local desktop server.
+   - [x] Added clean Android deep linking intent filters for `fuellogger://` and `com.fuellogger.app://` in `AndroidManifest.xml`.
+   - [x] Preserved Guest (Offline) mode as an optional safeguard.
+
+10. **Settings page**:
+    - [x] Added **Manage Fuel Types**: Added interactive card displaying fuel grade chips with delete (✕) controls, and text input to add new custom grades with local persistence.
+    - [x] Added **Export Vehicle Data**: Added card to export active vehicle fill-up logs to standard RFC-4180 CSV format with scrollable in-app preview and one-tap clipboard copy.
+
+11. **Upload page & Telemetry Engine Calculations**:
+    - [x] Removed `[Mandatory]` text across all form labels; replaced with clean `*` (e.g. `S.No / Run # *`, `Total Fuel Cost (₹) *`, `Litres Filled (L) *`, `Odometer Reading (km) *`).
+    - [x] Fixed odometer reading bug: User-entered odometer reading is directly stored into `fromOdometer`. Allows both higher and lower values without reverting or rejecting.
+    - [x] Fixed instant calculation sync: Integrated `TelemetryEngine.recalculateCycles` in `GarageProvider._loadLogsForActiveVehicle` so logs and telemetry calculations update immediately upon uploading or editing.
+    - [x] Documented full live calculations and cycle telemetry math in the release summary report.
+    - 

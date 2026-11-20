@@ -80,66 +80,162 @@ class _LoginViewState extends State<LoginView> {
 
   void _showForgotPasswordDialog() {
     final resetCtrl = TextEditingController(text: _emailController.text.trim());
+    final codeCtrl = TextEditingController();
+    final newPassCtrl = TextEditingController();
+    bool codeSent = false;
+    bool isWorking = false;
+    String statusMsg = '';
+
     showDialog(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: AppTheme.cardBg,
-          title: Row(
-            children: const [
-              Icon(Icons.mail_outline, color: AppTheme.costAmber, size: 22),
-              SizedBox(width: 8),
-              Text('Reset Password', style: TextStyle(fontWeight: FontWeight.bold)),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Enter your email address and we will send you a password reset link.',
-                style: TextStyle(fontSize: 13, color: Colors.grey),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppTheme.cardBg,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: const [
+                  Icon(Icons.lock_reset, color: AppTheme.costAmber, size: 24),
+                  SizedBox(width: 8),
+                  Text('Reset Password', style: TextStyle(fontWeight: FontWeight.bold)),
+                ],
               ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: resetCtrl,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Email Address',
-                  hintText: 'name@gmail.com',
-                  prefixIcon: Icon(Icons.email_outlined, size: 20),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      codeSent
+                          ? 'Enter the 6-digit code sent to ${resetCtrl.text.trim()} and choose your new password.'
+                          : 'Enter your email to receive a 6-digit recovery code.',
+                      style: const TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: resetCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      enabled: !codeSent && !isWorking,
+                      decoration: const InputDecoration(
+                        labelText: 'Email Address *',
+                        prefixIcon: Icon(Icons.email_outlined, size: 20),
+                      ),
+                    ),
+                    if (codeSent) ...[
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: codeCtrl,
+                        keyboardType: TextInputType.number,
+                        maxLength: 6,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(letterSpacing: 4, fontWeight: FontWeight.bold, fontSize: 18),
+                        decoration: const InputDecoration(
+                          labelText: '6-Digit Recovery Code *',
+                          hintText: '123456',
+                          prefixIcon: Icon(Icons.pin, size: 20),
+                          counterText: '',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: newPassCtrl,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: 'New Password (min 6 chars) *',
+                          prefixIcon: Icon(Icons.lock_outline, size: 20),
+                        ),
+                      ),
+                    ],
+                    if (statusMsg.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        statusMsg,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: statusMsg.contains('Error') || statusMsg.contains('Failed') || statusMsg.contains('Invalid')
+                              ? Colors.redAccent
+                              : Colors.greenAccent,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final email = resetCtrl.text.trim();
-                if (email.isEmpty || !email.contains('@')) {
-                  showCustomSnackBar(context, 'Please enter a valid email.', isError: true);
-                  return;
-                }
-                Navigator.pop(ctx);
-                final ok = await context.read<AuthProvider>().resetPassword(email);
-                if (mounted) {
-                  if (ok) {
-                    showCustomSnackBar(context, 'Password reset link sent to your email!');
-                  } else {
-                    showCustomSnackBar(context, 'Failed to send reset link.', isError: true);
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Send Reset Link', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: isWorking ? null : () => Navigator.pop(ctx),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                ),
+                if (!codeSent)
+                  ElevatedButton(
+                    onPressed: isWorking
+                        ? null
+                        : () async {
+                            final email = resetCtrl.text.trim();
+                            if (email.isEmpty || !email.contains('@')) {
+                              setDialogState(() => statusMsg = 'Please enter a valid email address.');
+                              return;
+                            }
+                            setDialogState(() {
+                              isWorking = true;
+                              statusMsg = 'Sending recovery code...';
+                            });
+                            final ok = await context.read<AuthProvider>().resetPassword(email);
+                            setDialogState(() {
+                              isWorking = false;
+                              if (ok) {
+                                codeSent = true;
+                                statusMsg = 'Code sent! Check your email for the 6-digit code.';
+                              } else {
+                                statusMsg = context.read<AuthProvider>().errorMessage;
+                              }
+                            });
+                          },
+                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
+                    child: Text(isWorking ? 'Sending...' : 'Send Recovery Code'),
+                  )
+                else
+                  ElevatedButton(
+                    onPressed: isWorking
+                        ? null
+                        : () async {
+                            final code = codeCtrl.text.trim();
+                            final newPass = newPassCtrl.text.trim();
+                            if (code.length < 6) {
+                              setDialogState(() => statusMsg = 'Please enter the 6-digit code.');
+                              return;
+                            }
+                            if (newPass.length < 6) {
+                              setDialogState(() => statusMsg = 'Password must be at least 6 characters.');
+                              return;
+                            }
+                            setDialogState(() {
+                              isWorking = true;
+                              statusMsg = 'Verifying and updating password...';
+                            });
+                            final ok = await context.read<AuthProvider>().verifyOtpAndSetPassword(
+                                  email: resetCtrl.text.trim(),
+                                  token: code,
+                                  newPassword: newPass,
+                                );
+                            if (ok) {
+                              Navigator.pop(ctx);
+                              showCustomSnackBar(context, 'Password reset successfully! Logged in.');
+                              _onSuccess();
+                            } else {
+                              setDialogState(() {
+                                isWorking = false;
+                                statusMsg = context.read<AuthProvider>().errorMessage;
+                              });
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.mileageGreen, foregroundColor: Colors.black),
+                    child: Text(isWorking ? 'Updating...' : 'Set Password & Log In', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+              ],
+            );
+          },
         );
       },
     );
@@ -194,7 +290,7 @@ class _LoginViewState extends State<LoginView> {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Mileage & Telemetry Tracker',
+                  'Mileage Tracker',
                   style: TextStyle(fontSize: 13, color: Colors.grey),
                 ),
                 const SizedBox(height: 28),
@@ -218,20 +314,15 @@ class _LoginViewState extends State<LoginView> {
                             ),
                             elevation: 1,
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _buildGoogleIcon(),
-                              const SizedBox(width: 12),
-                              const Text(
-                                'Sign in with Google',
-                                style: TextStyle(
-                                  color: Colors.black87,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                ),
+                          child: const Center(
+                            child: Text(
+                              'Sign in with Google',
+                              style: TextStyle(
+                                color: Colors.black87,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
                               ),
-                            ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 18),
@@ -387,28 +478,6 @@ class _LoginViewState extends State<LoginView> {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGoogleIcon() {
-    return Container(
-      width: 22,
-      height: 22,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-      ),
-      child: Center(
-        child: Text(
-          'G',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w900,
-            fontFamily: 'Roboto',
-            color: Colors.blue.shade700,
           ),
         ),
       ),

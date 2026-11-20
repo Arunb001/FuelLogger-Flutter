@@ -235,10 +235,10 @@ class _UploadViewState extends State<UploadView> {
                         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         textAlign: TextAlign.center,
                         decoration: const InputDecoration(
-                          labelText: 'S.No / Run # * [Mandatory]',
+                          labelText: 'S.No / Run # *',
                           prefixIcon: Icon(Icons.numbers, size: 20),
                         ),
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Required *' : null,
                       ),
                       const SizedBox(height: 14),
 
@@ -249,7 +249,7 @@ class _UploadViewState extends State<UploadView> {
                         textAlign: TextAlign.center,
                         onTap: _selectDate,
                         decoration: const InputDecoration(
-                          labelText: 'Date * [Mandatory]',
+                          labelText: 'Date *',
                           prefixIcon: Icon(Icons.calendar_month, size: 20),
                         ),
                       ),
@@ -259,7 +259,7 @@ class _UploadViewState extends State<UploadView> {
                       DropdownButtonFormField<String>(
                         value: garage.fuelTypes.contains(_selectedFuelType) ? _selectedFuelType : null,
                         decoration: const InputDecoration(
-                          labelText: 'Fuel Type * [Mandatory]',
+                          labelText: 'Fuel Type *',
                           prefixIcon: Icon(Icons.ev_station, size: 20),
                         ),
                         items: [
@@ -286,11 +286,11 @@ class _UploadViewState extends State<UploadView> {
                         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
                         textAlign: TextAlign.center,
                         decoration: const InputDecoration(
-                          labelText: 'Total Fuel Cost (₹) * [Mandatory]',
+                          labelText: 'Total Fuel Cost (₹) *',
                           prefixIcon: Icon(Icons.currency_rupee, size: 20),
                         ),
                         onChanged: (_) => setState(() {}),
-                        validator: (v) => (v == null || double.tryParse(v) == null || double.parse(v) <= 0) ? 'Enter valid cost' : null,
+                        validator: (v) => (v == null || double.tryParse(v) == null || double.parse(v) <= 0) ? 'Enter valid cost *' : null,
                       ),
                       const SizedBox(height: 14),
 
@@ -301,11 +301,11 @@ class _UploadViewState extends State<UploadView> {
                         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
                         textAlign: TextAlign.center,
                         decoration: const InputDecoration(
-                          labelText: 'Litres Filled * [Mandatory]',
+                          labelText: 'Litres Filled (L) *',
                           prefixIcon: Icon(Icons.water_drop_outlined, size: 20),
                         ),
                         onChanged: (_) => setState(() {}),
-                        validator: (v) => (v == null || double.tryParse(v) == null || double.parse(v) <= 0) ? 'Enter valid litres' : null,
+                        validator: (v) => (v == null || double.tryParse(v) == null || double.parse(v) <= 0) ? 'Enter valid litres *' : null,
                       ),
                       const SizedBox(height: 14),
 
@@ -316,12 +316,17 @@ class _UploadViewState extends State<UploadView> {
                         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         textAlign: TextAlign.center,
                         decoration: InputDecoration(
-                          labelText: 'Odometer Reading (km) * [Mandatory]',
+                          labelText: 'Odometer Reading (km) *',
                           hintText: prevOdo > 0 ? 'Last: $prevOdo km' : 'e.g. 15000',
                           prefixIcon: const Icon(Icons.speed, size: 20),
                         ),
                         onChanged: (_) => setState(() {}),
-                        validator: (v) => (v == null || int.tryParse(v) == null || int.parse(v) <= 0) ? 'Enter valid odometer' : null,
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return 'Odometer reading is required *';
+                          final n = int.tryParse(v.trim());
+                          if (n == null || n < 0) return 'Enter valid odometer number *';
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 14),
 
@@ -332,7 +337,7 @@ class _UploadViewState extends State<UploadView> {
                         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
                         textAlign: TextAlign.center,
                         decoration: const InputDecoration(
-                          labelText: 'Fuel Density (kg/m³) [Optional]',
+                          labelText: 'Fuel Density (kg/m³) (Optional)',
                           hintText: 'e.g. 745.5',
                           prefixIcon: Icon(Icons.opacity, size: 20),
                         ),

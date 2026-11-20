@@ -13,7 +13,7 @@ class GarageProvider extends ChangeNotifier {
   TelemetrySummary _summary = TelemetrySummary.empty();
   bool _isLoading = false;
 
-  final List<String> _fuelTypes = ['XP95', 'XP100', 'Standard / Unleaded', 'Power 100', 'Diesel'];
+  List<String> _fuelTypes = CacheService.getCachedFuelTypes();
 
   List<Vehicle> get vehicles => _vehicles;
   Vehicle? get activeVehicle => _activeVehicle;
@@ -72,8 +72,17 @@ class GarageProvider extends ChangeNotifier {
     }
 
     final vehicleId = _activeVehicle!.id.isNotEmpty ? _activeVehicle!.id : 'local_primary';
-    _fuelLogs = await SupabaseService.getFuelLogs(vehicleId);
-    _summary = TelemetryEngine.computeSummary(_fuelLogs);
+    final rawLogs = await SupabaseService.getFuelLogs(vehicleId);
+    _summary = TelemetryEngine.computeSummary(rawLogs);
+
+    // Compute cycle telemetry in-memory and sort reverse-chronological (latest run first)
+    final recalculated = TelemetryEngine.recalculateCycles(rawLogs);
+    recalculated.sort((a, b) {
+      final rCmp = b.runId.compareTo(a.runId);
+      if (rCmp != 0) return rCmp;
+      return b.date.compareTo(a.date);
+    });
+    _fuelLogs = recalculated;
     notifyListeners();
   }
 
@@ -183,8 +192,8 @@ class GarageProvider extends ChangeNotifier {
       fuelCost: fuelCost,
       litersToFill: litersToFill,
       costPerLtr: cpl,
-      fromOdometer: prevOdo > 0 ? prevOdo : fromOdometer,
-      toOdometer: fromOdometer,
+      fromOdometer: fromOdometer,
+      toOdometer: 0,
       distanceTraveled: dist,
       fuelConsumed: litersToFill,
       calculatedMileage: mileage,
@@ -224,6 +233,15 @@ class GarageProvider extends ChangeNotifier {
     final clean = name.trim();
     if (clean.isNotEmpty && !_fuelTypes.contains(clean)) {
       _fuelTypes.insert(0, clean);
+      CacheService.saveCachedFuelTypes(_fuelTypes);
+      notifyListeners();
+    }
+  }
+
+  void removeCustomFuelType(String name) {
+    if (_fuelTypes.length > 1) {
+      _fuelTypes.remove(name);
+      CacheService.saveCachedFuelTypes(_fuelTypes);
       notifyListeners();
     }
   }

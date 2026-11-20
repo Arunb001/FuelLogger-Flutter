@@ -57,17 +57,20 @@ class SupabaseService {
           idToken: idToken,
           accessToken: accessToken,
         );
-      } else {
-        // Fallback to web OAuth if idToken is not returned by the platform
+      }
+    } catch (e) {
+      // Fallback to Supabase OAuth web/browser flow if native Google Play Services sign-in fails
+      try {
         await client.auth.signInWithOAuth(
           OAuthProvider.google,
           redirectTo: 'fuellogger://auth',
         );
         return null;
+      } catch (_) {
+        rethrow;
       }
-    } catch (_) {
-      rethrow;
     }
+    return null;
   }
 
   static Future<void> resetPassword(String email) async {

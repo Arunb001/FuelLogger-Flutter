@@ -9,6 +9,7 @@ class CacheService {
   static const String _keyVehicleColors = 'vehicle_colors';
   static const String _keyCachedVehicles = 'cached_vehicles';
   static const String _keyPrefixLogs = 'cached_logs_';
+  static const String _keyFuelTypes = 'cached_fuel_types';
 
   static SharedPreferences? _prefs;
 
@@ -117,5 +118,17 @@ class CacheService {
       final jsonList = logs.map((log) => log.toJson()).toList();
       await _prefs?.setString('$_keyPrefixLogs$vehicleId', jsonEncode(jsonList));
     } catch (_) {}
+  }
+
+  // ── Cached Fuel Types ──
+
+  static List<String> getCachedFuelTypes() {
+    final list = _prefs?.getStringList(_keyFuelTypes);
+    if (list != null && list.isNotEmpty) return list;
+    return ['XP95', 'XP100', 'Standard / Unleaded', 'Power 100', 'Diesel'];
+  }
+
+  static Future<void> saveCachedFuelTypes(List<String> types) async {
+    await _prefs?.setStringList(_keyFuelTypes, types);
   }
 }

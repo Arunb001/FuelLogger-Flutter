@@ -284,7 +284,7 @@ class LogsView extends StatelessWidget {
                             Row(
                               children: [
                                 _buildTelemetryChip(
-                                  label: '${log.calculatedMileage} km/l',
+                                  label: '${log.calculatedMileage.toStringAsFixed(2)} km/l',
                                   color: AppTheme.mileageGreen,
                                   icon: Icons.speed,
                                 ),
@@ -296,9 +296,9 @@ class LogsView extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 8),
                                 _buildTelemetryChip(
-                                  label: '₹${log.costPerKm}/km',
+                                  label: '₹${log.costPerKm.toStringAsFixed(2)}/km',
                                   color: AppTheme.costAmber,
-                                  icon: Icons.attach_money,
+                                  icon: Icons.currency_rupee,
                                 ),
                               ],
                             ),
