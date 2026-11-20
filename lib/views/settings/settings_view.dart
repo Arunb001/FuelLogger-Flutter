@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../config/version.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_snackbar.dart';
+import '../../services/cache_service.dart';
 import '../auth/login_view.dart';
 
 class SettingsView extends StatefulWidget {
@@ -204,6 +205,79 @@ class _SettingsViewState extends State<SettingsView> {
                 foregroundColor: Colors.white,
               ),
               child: const Text('Sign Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showFuelColorPicker(BuildContext context, String fuelType, GarageProvider garage) {
+    final currentColorHex = CacheService.getFuelColorHex(fuelType);
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: AppTheme.cardBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.hexToColor(currentColorHex),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text('Color for \'$fuelType\'', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Tap any color circle below to apply:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                alignment: WrapAlignment.center,
+                children: CacheService.fuelColorPalette.map((hex) {
+                  final isSel = hex.toLowerCase() == currentColorHex.toLowerCase();
+                  final c = AppTheme.hexToColor(hex);
+                  return GestureDetector(
+                    onTap: () {
+                      garage.updateFuelTypeColor(fuelType, hex);
+                      Navigator.pop(ctx);
+                      showCustomSnackBar(context, 'Color updated for \'$fuelType\'!');
+                    },
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: c,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isSel ? Colors.white : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                      child: isSel ? const Icon(Icons.check, size: 20, color: Colors.white) : null,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close', style: TextStyle(color: Colors.grey)),
             ),
           ],
         );
@@ -458,16 +532,27 @@ class _SettingsViewState extends State<SettingsView> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    const Text('Active fuel options across upload & calculations:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    const Text('Active fuel options (tap chip to change color, ✕ to delete):', style: TextStyle(fontSize: 12, color: Colors.grey)),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: garage.fuelTypes.map((ft) {
                         final canDelete = garage.fuelTypes.length > 1;
-                        return Chip(
+                        final colorHex = CacheService.getFuelColorHex(ft);
+                        final fuelColor = AppTheme.hexToColor(colorHex);
+
+                        return InputChip(
                           backgroundColor: AppTheme.surfaceHigh,
+                          side: BorderSide(color: fuelColor, width: 1.5),
+                          avatar: Container(
+                            width: 14,
+                            height: 14,
+                            decoration: BoxDecoration(shape: BoxShape.circle, color: fuelColor),
+                          ),
                           label: Text(ft, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                          tooltip: 'Tap to change color, ✕ to delete',
+                          onPressed: () => _showFuelColorPicker(context, ft, garage),
                           deleteIcon: canDelete ? const Icon(Icons.close, size: 16, color: Colors.redAccent) : null,
                           onDeleted: canDelete
                               ? () {

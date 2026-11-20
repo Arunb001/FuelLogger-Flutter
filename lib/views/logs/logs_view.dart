@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/garage_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../models/fuel_log.dart';
+import '../../services/cache_service.dart';
 import '../../widgets/custom_snackbar.dart';
 import '../upload/upload_view.dart';
 
@@ -272,7 +273,21 @@ class LogsView extends StatelessWidget {
                                 children: [
                                   const Text('Fuel Type', style: TextStyle(color: Colors.grey, fontSize: 11)),
                                   const SizedBox(height: 2),
-                                  Text(log.fuelType, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white70)),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: AppTheme.hexToColor(CacheService.getFuelColorHex(log.fuelType)),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 5),
+                                      Text(log.fuelType, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white70)),
+                                    ],
+                                  ),
                                 ],
                               ),
                             ],

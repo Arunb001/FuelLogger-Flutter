@@ -120,6 +120,76 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> resetPasswordWithPastedLink({
+    required String rawUrl,
+    required String newPassword,
+  }) async {
+    _setLoading(true);
+    try {
+      final clean = rawUrl.trim();
+      final uri = Uri.parse(clean);
+
+      // 1. Try Supabase built-in getSessionFromUrl
+      try {
+        final res = await Supabase.instance.client.auth.getSessionFromUrl(uri);
+        await Supabase.instance.client.auth.updateUser(UserAttributes(password: newPassword.trim()));
+        _user = res.session.user;
+        _isGuest = false;
+        _errorMessage = '';
+        notifyListeners();
+        return true;
+      } catch (_) {}
+
+      // 2. Try URL Fragment parsing (#access_token=...&refresh_token=...)
+      String fragment = uri.fragment;
+      if (fragment.isEmpty && clean.contains('#')) {
+        fragment = clean.substring(clean.indexOf('#') + 1);
+      }
+      if (fragment.isNotEmpty) {
+        final q = Uri.splitQueryString(fragment);
+        final accessToken = q['access_token'];
+        final refreshToken = q['refresh_token'];
+        if (accessToken != null && accessToken.isNotEmpty) {
+          final res = await Supabase.instance.client.auth.setSession(refreshToken ?? accessToken);
+          await Supabase.instance.client.auth.updateUser(UserAttributes(password: newPassword.trim()));
+          _user = res.user ?? SupabaseService.currentUser;
+          _isGuest = false;
+          _errorMessage = '';
+          notifyListeners();
+          return true;
+        }
+      }
+
+      // 3. Try query token parameter
+      final q = uri.queryParameters;
+      final token = q['token'];
+      if (token != null && token.isNotEmpty) {
+        final res = await Supabase.instance.client.auth.verifyOTP(
+          tokenHash: token,
+          type: OtpType.recovery,
+        );
+        if (res.session != null) {
+          await Supabase.instance.client.auth.updateUser(UserAttributes(password: newPassword.trim()));
+          _user = res.user ?? SupabaseService.currentUser;
+          _isGuest = false;
+          _errorMessage = '';
+          notifyListeners();
+          return true;
+        }
+      }
+
+      _errorMessage = 'Could not extract session from pasted link. Make sure to copy the full URL.';
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = _cleanError(e.toString());
+      notifyListeners();
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   Future<bool> verifyOtpAndSetPassword({
     required String email,
     required String token,

@@ -53,7 +53,7 @@ class TelemetryEngine {
           fuelCost: cost,
           litersToFill: liters,
           costPerLtr: cpl,
-          fromOdometer: odo,
+          fromOdometer: row.fromOdometer,
           toOdometer: 0,
           distanceTraveled: 0.0,
           fuelConsumed: 0.0,
@@ -65,7 +65,7 @@ class TelemetryEngine {
         ));
       } else {
         // Full fill: Closes the cycle and computes complete derived metrics
-        final dist = odo > cycleStartOdo ? (odo - cycleStartOdo).toDouble() : 0.0;
+        final dist = (odo > cycleStartOdo && i > 0) ? (odo - cycleStartOdo).toDouble() : 0.0;
         final mileage = (dist > 0 && cycleAccumLiters > 0)
             ? double.parse((dist / cycleAccumLiters).toStringAsFixed(2))
             : 0.0;
@@ -84,8 +84,8 @@ class TelemetryEngine {
           fuelCost: cost,
           litersToFill: liters,
           costPerLtr: cpl,
-          fromOdometer: cycleStartOdo,
-          toOdometer: odo,
+          fromOdometer: row.fromOdometer,
+          toOdometer: cycleStartOdo,
           distanceTraveled: dist,
           fuelConsumed: double.parse(cycleAccumLiters.toStringAsFixed(2)),
           calculatedMileage: mileage,

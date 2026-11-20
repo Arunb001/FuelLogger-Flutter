@@ -245,4 +245,9 @@ class GarageProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<void> updateFuelTypeColor(String name, String hexColor) async {
+    await CacheService.setFuelColorHex(name, hexColor);
+    notifyListeners();
+  }
 }

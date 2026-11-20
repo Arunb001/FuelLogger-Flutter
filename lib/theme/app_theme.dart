@@ -13,6 +13,15 @@ class AppTheme {
   static const Color distanceBlue = Color(0xFF40C4FF);
   static const Color costAmber = Color(0xFFFFD54F);
 
+  static Color hexToColor(String hex) {
+    try {
+      final clean = hex.replaceAll('#', '').trim();
+      return Color(int.parse('FF$clean', radix: 16));
+    } catch (_) {
+      return primary;
+    }
+  }
+
   // Vehicle Theme Color Gradients
   static const Map<String, List<Color>> vehicleGradients = {
     'red': [Color(0xFFB71C1C), Color(0xFF3E0A0A)],

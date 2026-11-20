@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/garage_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../config/version.dart';
+import '../../config/env.dart';
 import '../../widgets/custom_snackbar.dart';
 import '../home/home_view.dart';
 
@@ -65,6 +67,59 @@ class _LoginViewState extends State<LoginView> {
   }
 
   Future<void> _handleGoogleSignIn() async {
+    // In DEV environment, Supabase has Google OAuth provider disabled.
+    // Show an informative dialog instead of redirecting to a broken browser page.
+    if (AppConfig.isDev) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppTheme.cardBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: const [
+              Icon(Icons.info_outline, color: AppTheme.costAmber, size: 24),
+              SizedBox(width: 8),
+              Flexible(child: Text('DEV Environment Notice', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text(
+                'Google Sign-In is disabled on the DEV Supabase backend ("Unsupported provider: provider is not enabled").',
+                style: TextStyle(fontSize: 13, height: 1.4),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'For testing on DEV, please use:\n'
+                '• Sign In with Password (or create an account)\n'
+                '• Continue as Guest (Offline Mode)',
+                style: TextStyle(fontSize: 13, color: Colors.white70, height: 1.4),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Note: Google Sign-In is active and fully configured on PROD.',
+                style: TextStyle(fontSize: 12, color: AppTheme.distanceBlue, fontStyle: FontStyle.italic),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('OK, Use Password / Guest', style: TextStyle(color: Colors.white70)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Try Anyway', style: TextStyle(color: AppTheme.costAmber)),
+            ),
+          ],
+        ),
+      );
+
+      if (proceed != true) return;
+    }
+
     final auth = context.read<AuthProvider>();
     final success = await auth.signInWithGoogle();
 
@@ -80,10 +135,12 @@ class _LoginViewState extends State<LoginView> {
 
   void _showForgotPasswordDialog() {
     final resetCtrl = TextEditingController(text: _emailController.text.trim());
+    final linkCtrl = TextEditingController();
     final codeCtrl = TextEditingController();
     final newPassCtrl = TextEditingController();
-    bool codeSent = false;
+    bool emailSent = false;
     bool isWorking = false;
+    bool useCodeMode = false;
     String statusMsg = '';
 
     showDialog(
@@ -106,23 +163,103 @@ class _LoginViewState extends State<LoginView> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      codeSent
-                          ? 'Enter the 6-digit code sent to ${resetCtrl.text.trim()} and choose your new password.'
-                          : 'Enter your email to receive a 6-digit recovery code.',
-                      style: const TextStyle(fontSize: 13, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: resetCtrl,
-                      keyboardType: TextInputType.emailAddress,
-                      enabled: !codeSent && !isWorking,
-                      decoration: const InputDecoration(
-                        labelText: 'Email Address *',
-                        prefixIcon: Icon(Icons.email_outlined, size: 20),
+                    if (!emailSent) ...[
+                      const Text(
+                        'Enter your email to receive a password reset link from Supabase.',
+                        style: TextStyle(fontSize: 13, color: Colors.grey),
                       ),
-                    ),
-                    if (codeSent) ...[
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: resetCtrl,
+                        keyboardType: TextInputType.emailAddress,
+                        enabled: !isWorking,
+                        decoration: const InputDecoration(
+                          labelText: 'Email Address *',
+                          prefixIcon: Icon(Icons.email_outlined, size: 20),
+                        ),
+                      ),
+                    ] else if (!useCodeMode) ...[
+                      // Link Paste Mode (Default for Supabase link emails)
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.surfaceHigh,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppTheme.borderColor),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Text(
+                              'How to reset using the email link:',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppTheme.costAmber),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              '1. Check your email for "Reset your password".\n'
+                              '2. Long-press the "Reset password" button/link and choose "Copy link address" (or copy the address bar from Chrome if it showed localhost:3000).\n'
+                              '3. Paste it below and choose your new password.',
+                              style: TextStyle(fontSize: 11, color: Colors.white70, height: 1.3),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: linkCtrl,
+                              maxLines: 2,
+                              style: const TextStyle(fontSize: 12),
+                              decoration: const InputDecoration(
+                                labelText: 'Paste Reset Link or Chrome URL *',
+                                hintText: 'https://... or localhost:3000/#access_token=...',
+                                prefixIcon: Icon(Icons.link, size: 20),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          IconButton(
+                            icon: const Icon(Icons.paste, color: AppTheme.distanceBlue),
+                            tooltip: 'Paste from clipboard',
+                            onPressed: () async {
+                              final data = await Clipboard.getData(Clipboard.kTextPlain);
+                              if (data?.text != null && data!.text!.isNotEmpty) {
+                                setDialogState(() {
+                                  linkCtrl.text = data.text!;
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: newPassCtrl,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: 'New Password (min 6 chars) *',
+                          prefixIcon: Icon(Icons.lock_outline, size: 20),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () => setDialogState(() => useCodeMode = true),
+                          child: const Text(
+                            'Received a 6-digit code instead?',
+                            style: TextStyle(color: AppTheme.distanceBlue, fontSize: 11, decoration: TextDecoration.underline),
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      // 6-digit code mode fallback
+                      Text(
+                        'Enter the 6-digit code sent to ${resetCtrl.text.trim()} and your new password.',
+                        style: const TextStyle(fontSize: 13, color: Colors.grey),
+                      ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: codeCtrl,
@@ -146,6 +283,17 @@ class _LoginViewState extends State<LoginView> {
                           prefixIcon: Icon(Icons.lock_outline, size: 20),
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () => setDialogState(() => useCodeMode = false),
+                          child: const Text(
+                            'Use Reset Link instead?',
+                            style: TextStyle(color: AppTheme.distanceBlue, fontSize: 11, decoration: TextDecoration.underline),
+                          ),
+                        ),
+                      ),
                     ],
                     if (statusMsg.isNotEmpty) ...[
                       const SizedBox(height: 10),
@@ -153,7 +301,7 @@ class _LoginViewState extends State<LoginView> {
                         statusMsg,
                         style: TextStyle(
                           fontSize: 12,
-                          color: statusMsg.contains('Error') || statusMsg.contains('Failed') || statusMsg.contains('Invalid')
+                          color: statusMsg.contains('Error') || statusMsg.contains('Failed') || statusMsg.contains('Invalid') || statusMsg.contains('Could not')
                               ? Colors.redAccent
                               : Colors.greenAccent,
                         ),
@@ -167,7 +315,7 @@ class _LoginViewState extends State<LoginView> {
                   onPressed: isWorking ? null : () => Navigator.pop(ctx),
                   child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
                 ),
-                if (!codeSent)
+                if (!emailSent)
                   ElevatedButton(
                     onPressed: isWorking
                         ? null
@@ -179,21 +327,58 @@ class _LoginViewState extends State<LoginView> {
                             }
                             setDialogState(() {
                               isWorking = true;
-                              statusMsg = 'Sending recovery code...';
+                              statusMsg = 'Sending reset email...';
                             });
                             final ok = await context.read<AuthProvider>().resetPassword(email);
                             setDialogState(() {
                               isWorking = false;
                               if (ok) {
-                                codeSent = true;
-                                statusMsg = 'Code sent! Check your email for the 6-digit code.';
+                                emailSent = true;
+                                statusMsg = 'Reset email sent! Please check your inbox.';
                               } else {
                                 statusMsg = context.read<AuthProvider>().errorMessage;
                               }
                             });
                           },
                     style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
-                    child: Text(isWorking ? 'Sending...' : 'Send Recovery Code'),
+                    child: Text(isWorking ? 'Sending...' : 'Send Reset Email'),
+                  )
+                else if (!useCodeMode)
+                  ElevatedButton(
+                    onPressed: isWorking
+                        ? null
+                        : () async {
+                            final rawUrl = linkCtrl.text.trim();
+                            final newPass = newPassCtrl.text.trim();
+                            if (rawUrl.isEmpty) {
+                              setDialogState(() => statusMsg = 'Please paste the reset link or browser URL.');
+                              return;
+                            }
+                            if (newPass.length < 6) {
+                              setDialogState(() => statusMsg = 'Password must be at least 6 characters.');
+                              return;
+                            }
+                            setDialogState(() {
+                              isWorking = true;
+                              statusMsg = 'Validating link and setting new password...';
+                            });
+                            final ok = await context.read<AuthProvider>().resetPasswordWithPastedLink(
+                                  rawUrl: rawUrl,
+                                  newPassword: newPass,
+                                );
+                            if (ok) {
+                              Navigator.pop(ctx);
+                              showCustomSnackBar(context, 'Password updated successfully! Welcome.');
+                              _onSuccess();
+                            } else {
+                              setDialogState(() {
+                                isWorking = false;
+                                statusMsg = context.read<AuthProvider>().errorMessage;
+                              });
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.mileageGreen, foregroundColor: Colors.black),
+                    child: Text(isWorking ? 'Updating...' : 'Set Password & Log In', style: const TextStyle(fontWeight: FontWeight.bold)),
                   )
                 else
                   ElevatedButton(
@@ -456,19 +641,20 @@ class _LoginViewState extends State<LoginView> {
                   ),
                 ),
 
-                const SizedBox(height: 14),
-
-                // Guest Mode
-                TextButton(
-                  onPressed: () {
-                    auth.continueAsGuest();
-                    _onSuccess();
-                  },
-                  child: const Text(
-                    'Continue as Guest (Offline Mode)',
-                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                // Guest Mode (DEV only - completely removed on Production)
+                if (AppConfig.isDev) ...[
+                  const SizedBox(height: 14),
+                  TextButton(
+                    onPressed: () {
+                      auth.continueAsGuest();
+                      _onSuccess();
+                    },
+                    child: const Text(
+                      'Continue as Guest (Offline Mode)',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
                   ),
-                ),
+                ],
 
                 const SizedBox(height: 28),
                 // Version display - only "Version - #"

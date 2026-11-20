@@ -10,6 +10,20 @@ class CacheService {
   static const String _keyCachedVehicles = 'cached_vehicles';
   static const String _keyPrefixLogs = 'cached_logs_';
   static const String _keyFuelTypes = 'cached_fuel_types';
+  static const String _keyFuelColors = 'cached_fuel_colors';
+
+  static const List<String> fuelColorPalette = [
+    '#FF9800', // Amber / Orange
+    '#E91E63', // Pink
+    '#FF5252', // Red
+    '#4CAF50', // Green
+    '#2196F3', // Blue
+    '#9C27B0', // Purple
+    '#00BCD4', // Cyan
+    '#FFEB3B', // Yellow
+    '#607D8B', // Blue Grey
+    '#795548', // Brown
+  ];
 
   static SharedPreferences? _prefs;
 
@@ -130,5 +144,44 @@ class CacheService {
 
   static Future<void> saveCachedFuelTypes(List<String> types) async {
     await _prefs?.setStringList(_keyFuelTypes, types);
+  }
+
+  // ── Cached Fuel Colors ──
+
+  static String getFuelColorHex(String fuelName) {
+    final clean = fuelName.toLowerCase().trim();
+    final raw = _prefs?.getString(_keyFuelColors);
+    if (raw != null) {
+      try {
+        final map = jsonDecode(raw) as Map<String, dynamic>;
+        if (map.containsKey(clean)) {
+          return map[clean].toString();
+        }
+      } catch (_) {}
+    }
+
+    // Default color mappings matching the original Python app
+    if (clean.contains('xp95')) return '#FF9800';
+    if (clean.contains('xp100')) return '#E91E63';
+    if (clean.contains('diesel')) return '#4CAF50';
+    if (clean.contains('power')) return '#2196F3';
+    if (clean.contains('unleaded') || clean.contains('standard')) return '#FF5252';
+
+    // Hash-based deterministic fallback from palette
+    final hash = clean.codeUnits.fold(0, (acc, c) => acc + c);
+    return fuelColorPalette[hash % fuelColorPalette.length];
+  }
+
+  static Future<void> setFuelColorHex(String fuelName, String hexColor) async {
+    final clean = fuelName.toLowerCase().trim();
+    final raw = _prefs?.getString(_keyFuelColors);
+    Map<String, dynamic> map = {};
+    if (raw != null) {
+      try {
+        map = jsonDecode(raw) as Map<String, dynamic>;
+      } catch (_) {}
+    }
+    map[clean] = hexColor;
+    await _prefs?.setString(_keyFuelColors, jsonEncode(map));
   }
 }

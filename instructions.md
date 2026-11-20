@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
-- **Current Version**: `Version - 2.4.0 (Build 7)`
+- **Current Version**: `Version - 2.5.0 (Build 8)`
 - **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
 - **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
@@ -139,4 +139,23 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
     - [x] Fixed odometer reading bug: User-entered odometer reading is directly stored into `fromOdometer`. Allows both higher and lower values without reverting or rejecting.
     - [x] Fixed instant calculation sync: Integrated `TelemetryEngine.recalculateCycles` in `GarageProvider._loadLogsForActiveVehicle` so logs and telemetry calculations update immediately upon uploading or editing.
     - [x] Documented full live calculations and cycle telemetry math in the release summary report.
-    - 
+
+### Completed in Version 2.5.0 (Build 8):
+
+12. **Upload page & Telemetry Engine Calculations**:
+    - [x] **Enforced strict odometer validation**: Odometer must strictly be greater than the previous fill-up's reading (`n > prevOdo`). Prevents input errors and displays clean inline validation message `Odometer must be greater than previous (X km) *`.
+    - [x] **Fixed "get previously mentioned odometer value only" bug**: User-entered odometer is strictly preserved in `fromOdometer` during cycle recalculation so all cards, logs list, and edit dialogs display the actual odometer entered by the user rather than displacing with the previous cycle's odometer.
+
+13. **Settings page**:
+    - [x] **Custom Fuel Type Color Picker**: Each fuel type chip now displays an active color circle and border. Tapping any fuel chip opens a palette picker (matching the 8-color Python application palette) to change its color dynamically with instant local persistence.
+    - [x] Connected fuel colors across Upload view dropdown items and Logs view badge indicators.
+
+14. **Log-in page**:
+    - [x] **DEV Google Sign-In handling**: In DEV, Supabase returns `Unsupported provider: provider is not enabled`. Instead of redirecting to a broken browser URL, the app now intercepts Google Sign-In in DEV and displays a clear DEV environment notice dialog guiding users to use Email/Password or Guest Mode on DEV, while noting Google Sign-In is active on PROD.
+    - [x] **Password Sign-In clarification**: Clarified why "Incorrect email or password" occurs for accounts originally created with Google OAuth (no password hash in Supabase until a password is set/reset).
+    - [x] **Password Reset with Link / Chrome URL Paste**: Supabase sends a recovery link (not a 6-digit code) that redirects to `localhost:3000` (`ERR_CONNECTION_REFUSED` on mobile). Implemented in-app link parsing with one-tap clipboard paste button: users copy/paste the email link or Chrome URL into the app, enter a new password, and the session is authenticated directly. Added quick toggle for users receiving 6-digit codes.
+
+15. **Production & Guest Mode**:
+    - [x] Completely removed Guest Mode on Production (`AppConfig.isDev == false`).
+    - [x] Preserved Guest Mode on DEV (`AppConfig.isDev == true`).
+    - [x] Production APK build withheld per user instructions (building DEV APK only until final confirmation).

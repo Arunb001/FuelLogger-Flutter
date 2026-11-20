@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../providers/garage_provider.dart';
+import '../../services/cache_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_snackbar.dart';
 
@@ -166,7 +167,11 @@ class _UploadViewState extends State<UploadView> {
     final double cost = double.tryParse(_costController.text) ?? 0.0;
     final double liters = double.tryParse(_litersController.text) ?? 0.0;
     final int odo = int.tryParse(_odoController.text) ?? 0;
-    final int prevOdo = garage.summary.latestOdometer;
+    int prevOdo = garage.summary.latestOdometer;
+    for (final l in garage.fuelLogs) {
+      if (l.fromOdometer > prevOdo) prevOdo = l.fromOdometer;
+      if (l.toOdometer > prevOdo) prevOdo = l.toOdometer;
+    }
     final double cpl = liters > 0 ? (cost / liters) : 0.0;
     final double dist = (odo > prevOdo && isFull) ? (odo - prevOdo).toDouble() : 0.0;
     final double expectedMileage = (dist > 0 && liters > 0) ? (dist / liters) : 0.0;
@@ -263,7 +268,21 @@ class _UploadViewState extends State<UploadView> {
                           prefixIcon: Icon(Icons.ev_station, size: 20),
                         ),
                         items: [
-                          ...garage.fuelTypes.map((ft) => DropdownMenuItem(value: ft, child: Text(ft))),
+                          ...garage.fuelTypes.map((ft) {
+                            final cHex = CacheService.getFuelColorHex(ft);
+                            final c = AppTheme.hexToColor(cHex);
+                            return DropdownMenuItem(
+                              value: ft,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(width: 10, height: 10, decoration: BoxDecoration(shape: BoxShape.circle, color: c)),
+                                  const SizedBox(width: 8),
+                                  Text(ft),
+                                ],
+                              ),
+                            );
+                          }),
                           const DropdownMenuItem(
                             value: '__add__',
                             child: Text('➕ Add Custom Fuel Type...', style: TextStyle(color: AppTheme.distanceBlue)),
@@ -325,6 +344,9 @@ class _UploadViewState extends State<UploadView> {
                           if (v == null || v.trim().isEmpty) return 'Odometer reading is required *';
                           final n = int.tryParse(v.trim());
                           if (n == null || n < 0) return 'Enter valid odometer number *';
+                          if (prevOdo > 0 && n <= prevOdo) {
+                            return 'Odometer must be greater than previous ($prevOdo km) *';
+                          }
                           return null;
                         },
                       ),
