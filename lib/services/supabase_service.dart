@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../config/env.dart';
 import '../models/vehicle.dart';
 import '../models/fuel_log.dart';
 import 'cache_service.dart';
@@ -37,40 +38,29 @@ class SupabaseService {
   }
 
   static Future<AuthResponse?> signInWithGoogleNative() async {
-    try {
-      final GoogleSignIn googleSignIn = GoogleSignIn(
-        scopes: ['email', 'profile'],
-      );
+    final GoogleSignIn googleSignIn = GoogleSignIn(
+      serverClientId: AppConfig.googleWebClientId,
+      scopes: ['email', 'profile'],
+    );
 
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-      if (googleUser == null) {
-        return null; // User cancelled the sign-in sheet
-      }
-
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final idToken = googleAuth.idToken;
-      final accessToken = googleAuth.accessToken;
-
-      if (idToken != null) {
-        return await client.auth.signInWithIdToken(
-          provider: OAuthProvider.google,
-          idToken: idToken,
-          accessToken: accessToken,
-        );
-      }
-    } catch (e) {
-      // Fallback to Supabase OAuth web/browser flow if native Google Play Services sign-in fails
-      try {
-        await client.auth.signInWithOAuth(
-          OAuthProvider.google,
-          redirectTo: 'fuellogger://auth',
-        );
-        return null;
-      } catch (_) {
-        rethrow;
-      }
+    final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+    if (googleUser == null) {
+      return null; // User cancelled the sign-in sheet
     }
-    return null;
+
+    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+    final idToken = googleAuth.idToken;
+    final accessToken = googleAuth.accessToken;
+
+    if (idToken != null) {
+      return await client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+    } else {
+      throw Exception('Could not retrieve Google ID token. Please ensure Google Play Services is available or sign in with password.');
+    }
   }
 
   static Future<void> resetPassword(String email) async {

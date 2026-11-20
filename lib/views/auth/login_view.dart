@@ -140,7 +140,7 @@ class _LoginViewState extends State<LoginView> {
     final newPassCtrl = TextEditingController();
     bool emailSent = false;
     bool isWorking = false;
-    bool useCodeMode = false;
+    bool useCodeMode = true;
     String statusMsg = '';
 
     showDialog(
@@ -250,15 +250,15 @@ class _LoginViewState extends State<LoginView> {
                         child: GestureDetector(
                           onTap: () => setDialogState(() => useCodeMode = true),
                           child: const Text(
-                            'Received a 6-digit code instead?',
+                            'Received a 6-digit code instead? Tap to enter code',
                             style: TextStyle(color: AppTheme.distanceBlue, fontSize: 11, decoration: TextDecoration.underline),
                           ),
                         ),
                       ),
                     ] else ...[
-                      // 6-digit code mode fallback
+                      // 6-digit code mode (Default)
                       Text(
-                        'Enter the 6-digit code sent to ${resetCtrl.text.trim()} and your new password.',
+                        'Enter the 6-digit recovery code sent to ${resetCtrl.text.trim()} and your new password.',
                         style: const TextStyle(fontSize: 13, color: Colors.grey),
                       ),
                       const SizedBox(height: 12),
@@ -290,7 +290,7 @@ class _LoginViewState extends State<LoginView> {
                         child: GestureDetector(
                           onTap: () => setDialogState(() => useCodeMode = false),
                           child: const Text(
-                            'Use Reset Link instead?',
+                            'Received an email link instead? Tap to paste link',
                             style: TextStyle(color: AppTheme.distanceBlue, fontSize: 11, decoration: TextDecoration.underline),
                           ),
                         ),

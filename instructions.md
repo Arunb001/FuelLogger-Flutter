@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
-- **Current Version**: `Version - 2.6.0 (Build 9)`
+- **Current Version**: `Version - 2.7.0 (Build 10)`
 - **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
 - **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
@@ -171,3 +171,10 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
     - [x] **Database Verification**: Confirmed that the Production app (`EnvProd`) connects to the exact same old database (`https://hjprefmnofrqyjocihto.supabase.co`) used by the Python application (`Fuelapp/utils/supabase_client.py`), preserving all existing vehicle records, fill-up logs, and telemetry.
     - [x] **Built Production Release APK**: Compiled standalone `app-prod-release.apk` with Guest Mode disabled and native Google Sign-In active.
     - [x] **Built DEV Release APK**: Compiled updated `app-dev-release.apk` for testing.
+
+### Completed in Version 2.7.0 (Build 10):
+
+18. **Log-in page — Seamless Native Google Sign-In & User-Friendly Recovery**:
+    - [x] **Seamless One-Tap Native Google Sign-In (PROD)**: Fixed missing `serverClientId` in `GoogleSignIn` initialization by binding `AppConfig.googleWebClientId` (`376743404421-kuj7117qutn4svh9lff4o3i97tom44br.apps.googleusercontent.com`). Selecting an account from the native Android sheet now directly issues an OpenID `idToken`, authenticating immediately via `client.auth.signInWithIdToken` without opening Chrome, without double account prompts, and without redirecting to `localhost:3000`.
+    - [x] **6-Digit OTP Recovery Front-and-Center**: Set the 6-digit recovery code input as the primary default mode in the Reset Password dialog. Added clear instructions explaining that Supabase defaults to `{{ .ConfirmationURL }}` (link) and can be configured to send the 6-digit numeric OTP code (`{{ .Token }}`) directly in Supabase Dashboard $\rightarrow$ Authentication $\rightarrow$ Email Templates. Preserved optional link/URL paste mode as a secondary fallback.
+    - [x] **Built & Verified Release APKs**: Rebuilt both `app-prod-release.apk` and `app-dev-release.apk`.

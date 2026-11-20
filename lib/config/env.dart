@@ -4,4 +4,5 @@ abstract class AppConfig {
   static late String supabaseAnonKey;
   static late bool isDev;
   static late String flavor;
+  static String? googleWebClientId;
 }
