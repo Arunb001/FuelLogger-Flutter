@@ -6,7 +6,6 @@ import '../../providers/garage_provider.dart';
 import '../../services/cache_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_snackbar.dart';
-import '../logs/csv_import_sheet.dart';
 
 class UploadView extends StatefulWidget {
   const UploadView({Key? key}) : super(key: key);
@@ -475,17 +474,6 @@ class _UploadViewState extends State<UploadView> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-              ),
-              const SizedBox(height: 12),
-              Center(
-                child: TextButton.icon(
-                  onPressed: () => CsvImportSheet.show(context),
-                  icon: const Icon(Icons.file_upload_outlined, size: 16, color: AppTheme.distanceBlue),
-                  label: const Text(
-                    'Or bulk import multiple fill-ups via CSV',
-                    style: TextStyle(color: AppTheme.distanceBlue, fontSize: 13),
-                  ),
-                ),
               ),
               const SizedBox(height: 20),
             ],

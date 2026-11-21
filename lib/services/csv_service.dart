@@ -4,17 +4,10 @@ import '../models/fuel_log.dart';
 import 'telemetry_engine.dart';
 
 class CsvService {
-  /// Generates a standard sample CSV template with clean real-world entries.
+  /// Generates a minimal sample CSV template with header and exactly 1 sample row as requested.
   static String generateSampleCsv() {
     return '''run_id,date,fuel_type,odometer,fuel_cost,liters_to_fill,fuel_density,fill_flag
-1,2026-11-01,XP95,1929,801.00,9.30,750.7,F
-2,2026-11-04,XP95,2207,1014.26,9.96,747.3,F
-3,2026-11-08,XP100,3270,1666.81,9.68,765.0,F
-4,2026-11-11,XP100,3600,1619.95,8.78,766.1,F
-5,2026-11-14,XP95,3868,1028.31,9.19,748.4,F
-6,2026-11-16,XP95,4143,1066.04,9.28,745.0,F
-7,2026-11-18,XP95,4401,1086.87,9.90,749.0,F
-8,2026-11-20,XP95,4722,1152.26,9.84,800.6,F''';
+1,2026-11-01,XP95,1929,801.00,9.30,750.7,F''';
   }
 
   /// Parses CSV string into structured FuelLog objects with full cycle telemetry recalculated.

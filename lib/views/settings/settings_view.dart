@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import '../../providers/garage_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -7,6 +9,7 @@ import '../../config/version.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_snackbar.dart';
 import '../../services/cache_service.dart';
+import '../../models/fuel_log.dart';
 import '../auth/login_view.dart';
 import '../logs/csv_import_sheet.dart';
 
@@ -286,7 +289,7 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
-  void _showExportDialog(GarageProvider garage) {
+  Future<void> _downloadCsvFile(GarageProvider garage) async {
     final logs = garage.fuelLogs;
     if (logs.isEmpty) {
       showCustomSnackBar(context, 'No fuel logs available to export.', isError: true);
@@ -294,77 +297,34 @@ class _SettingsViewState extends State<SettingsView> {
     }
 
     final StringBuffer csv = StringBuffer();
-    csv.writeln('Run #,Date,Fuel Type,Density (kg/m3),Cost (INR),Litres Filled,Cost/Litre,From Odometer,To Odometer,Distance Traveled (KM),Fuel Consumed (L),Calculated Mileage (KM/L),Cost/KM,Fill Flag');
+    csv.writeln('run_id,date,fuel_type,odometer,fuel_cost,liters_to_fill,cost_per_ltr,distance_traveled,fuel_consumed,calculated_mileage,cost_per_km,fuel_density,fill_flag');
 
-    for (final l in logs) {
-      csv.writeln('${l.runId},${l.date},"${l.fuelType}",${l.fuelDensity},${l.fuelCost},${l.litersToFill},${l.costPerLtr},${l.fromOdometer},${l.toOdometer},${l.distanceTraveled},${l.fuelConsumed},${l.calculatedMileage},${l.costPerKm},${l.fuelFillFlag}');
+    final sorted = List<FuelLog>.from(logs);
+    sorted.sort((a, b) => a.runId.compareTo(b.runId));
+
+    for (final l in sorted) {
+      csv.writeln('${l.runId},${l.date},"${l.fuelType}",${l.fromOdometer},${l.fuelCost},${l.litersToFill},${l.costPerLtr},${l.distanceTraveled},${l.fuelConsumed},${l.calculatedMileage},${l.costPerKm},${l.fuelDensity},${l.fuelFillFlag}');
     }
 
-    final csvText = csv.toString();
+    final fileName = '${garage.activeVehicleName.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')}_fuel_logs.csv';
 
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: AppTheme.cardBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: const [
-              Icon(Icons.file_download_done, color: AppTheme.mileageGreen, size: 22),
-              SizedBox(width: 8),
-              Text('Exported CSV Data', style: TextStyle(fontWeight: FontWeight.bold)),
-            ],
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Vehicle: ${garage.activeVehicleName} • ${logs.length} entries',
-                  style: const TextStyle(fontSize: 13, color: Colors.grey),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  height: 180,
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceHigh,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.borderColor),
-                  ),
-                  child: SingleChildScrollView(
-                    child: SelectableText(
-                      csvText,
-                      style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.white70),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Close', style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton.icon(
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: csvText));
-                Navigator.pop(ctx);
-                showCustomSnackBar(context, 'CSV copied to clipboard (${logs.length} logs)!');
-              },
-              icon: const Icon(Icons.copy, size: 16, color: Colors.black),
-              label: const Text('Copy CSV', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.mileageGreen,
-              ),
-            ),
-          ],
-        );
-      },
-    );
+    try {
+      final bytes = Uint8List.fromList(utf8.encode(csv.toString()));
+      final res = await FilePicker.saveFile(
+        dialogTitle: 'Download Vehicle Logs (.csv)',
+        fileName: fileName,
+        bytes: bytes,
+        mimeType: 'text/csv',
+      );
+
+      if (mounted && res != null) {
+        showCustomSnackBar(context, '$fileName downloaded successfully!');
+      }
+    } catch (e) {
+      if (mounted) {
+        showCustomSnackBar(context, 'Failed to download CSV: $e', isError: true);
+      }
+    }
   }
 
   @override
@@ -639,9 +599,9 @@ class _SettingsViewState extends State<SettingsView> {
                           ),
                         ),
                         OutlinedButton.icon(
-                          onPressed: () => _showExportDialog(garage),
+                          onPressed: () => _downloadCsvFile(garage),
                           icon: const Icon(Icons.download, size: 18, color: AppTheme.mileageGreen),
-                          label: const Text('Export CSV', style: TextStyle(color: AppTheme.mileageGreen, fontWeight: FontWeight.bold)),
+                          label: const Text('Download CSV', style: TextStyle(color: AppTheme.mileageGreen, fontWeight: FontWeight.bold)),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: AppTheme.mileageGreen),
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

@@ -7,7 +7,6 @@ import '../../models/fuel_log.dart';
 import '../../services/cache_service.dart';
 import '../../widgets/custom_snackbar.dart';
 import '../upload/upload_view.dart';
-import 'csv_import_sheet.dart';
 
 class LogsView extends StatelessWidget {
   const LogsView({Key? key}) : super(key: key);
@@ -201,13 +200,6 @@ class LogsView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text('Logs — ${garage.activeVehicleName}'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.file_upload_outlined, color: Colors.white),
-            tooltip: 'Bulk Import CSV',
-            onPressed: () => CsvImportSheet.show(context),
-          ),
-        ],
       ),
       body: RefreshIndicator(
         onRefresh: () => garage.loadGarage(),
@@ -248,20 +240,6 @@ class LogsView extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           elevation: 2,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: () => CsvImportSheet.show(context),
-                        icon: const Icon(Icons.file_upload_outlined, size: 18, color: AppTheme.distanceBlue),
-                        label: const Text(
-                          'Bulk Import from CSV',
-                          style: TextStyle(color: AppTheme.distanceBlue, fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppTheme.distanceBlue),
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
                     ],

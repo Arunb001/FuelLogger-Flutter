@@ -79,8 +79,22 @@ class GarageProvider extends ChangeNotifier {
     // Compute cycle telemetry in-memory and sort reverse-chronological (latest run first)
     final recalculated = TelemetryEngine.recalculateCycles(rawLogs);
     recalculated.sort((a, b) {
+      // 1. Primary: latest runId first (descending)
       final rCmp = b.runId.compareTo(a.runId);
       if (rCmp != 0) return rCmp;
+
+      // 2. Secondary: latest createdAt timestamp first (descending)
+      if (a.createdAt != null && b.createdAt != null) {
+        final tCmp = b.createdAt!.compareTo(a.createdAt!);
+        if (tCmp != 0) return tCmp;
+      }
+
+      // 3. Tertiary: Full tank fill ('F') closes the cycle, so in reverse-chronology,
+      // the Full fill must appear on TOP of earlier partial fill(s) ('P')!
+      if (!b.isPartial && a.isPartial) return 1;
+      if (b.isPartial && !a.isPartial) return -1;
+
+      // 4. Quaternary: latest date first (descending)
       return b.date.compareTo(a.date);
     });
     _fuelLogs = recalculated;

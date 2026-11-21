@@ -1,9 +1,11 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import '../../providers/garage_provider.dart';
 import '../../services/csv_service.dart';
+import '../../models/fuel_log.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_snackbar.dart';
 
@@ -24,40 +26,11 @@ class CsvImportSheet extends StatefulWidget {
 }
 
 class _CsvImportSheetState extends State<CsvImportSheet> {
-  final TextEditingController _csvController = TextEditingController();
-  bool _replaceExisting = false;
+  String? _selectedFileName;
+  String _csvContent = '';
+  List<FuelLog> _parsedLogs = [];
+  bool _replaceExisting = false; // false = Append, true = Full Replace
   bool _isLoading = false;
-  int _parsedRowCount = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _csvController.addListener(_updateRowCount);
-  }
-
-  @override
-  void dispose() {
-    _csvController.removeListener(_updateRowCount);
-    _csvController.dispose();
-    super.dispose();
-  }
-
-  void _updateRowCount() {
-    final text = _csvController.text.trim();
-    if (text.isEmpty) {
-      if (_parsedRowCount != 0) setState(() => _parsedRowCount = 0);
-      return;
-    }
-    final lines = text.split('\n').where((l) => l.trim().isNotEmpty).toList();
-    // Exclude header row if present
-    int count = lines.length;
-    if (count > 0 && lines.first.toLowerCase().contains('odo')) {
-      count = count - 1;
-    }
-    if (_parsedRowCount != count) {
-      setState(() => _parsedRowCount = count.clamp(0, 9999));
-    }
-  }
 
   Future<void> _pickFile() async {
     try {
@@ -70,12 +43,28 @@ class _CsvImportSheetState extends State<CsvImportSheet> {
         final file = files.first;
         final content = await file.xFile.readAsString();
 
-        if (content.isNotEmpty) {
+        if (content.trim().isNotEmpty) {
+          final parsed = CsvService.parseCsv(
+            content,
+            userId: 'preview',
+            vehicleId: 'preview',
+          );
+
           setState(() {
-            _csvController.text = content;
+            _selectedFileName = file.name;
+            _csvContent = content;
+            _parsedLogs = parsed;
           });
+
           if (mounted) {
-            showCustomSnackBar(context, 'Loaded ${file.name} successfully!');
+            showCustomSnackBar(
+              context,
+              'Loaded ${file.name} (${parsed.length} log rows detected)!',
+            );
+          }
+        } else {
+          if (mounted) {
+            showCustomSnackBar(context, 'The selected file is empty.', isError: true);
           }
         }
       }
@@ -86,22 +75,30 @@ class _CsvImportSheetState extends State<CsvImportSheet> {
     }
   }
 
-  void _loadSampleData() {
-    setState(() {
-      _csvController.text = CsvService.generateSampleCsv();
-    });
-    showCustomSnackBar(context, 'Sample test data loaded! Tap "Start Import" to proceed.');
-  }
+  Future<void> _downloadSampleCsv() async {
+    try {
+      final sample = CsvService.generateSampleCsv();
+      final bytes = Uint8List.fromList(utf8.encode(sample));
+      final res = await FilePicker.saveFile(
+        dialogTitle: 'Download sample.csv',
+        fileName: 'sample_fuel_data.csv',
+        bytes: bytes,
+        mimeType: 'text/csv',
+      );
 
-  void _copyTemplate() {
-    Clipboard.setData(ClipboardData(text: CsvService.generateSampleCsv()));
-    showCustomSnackBar(context, 'Sample CSV format copied to clipboard!');
+      if (mounted && res != null) {
+        showCustomSnackBar(context, 'sample.csv downloaded successfully!');
+      }
+    } catch (e) {
+      if (mounted) {
+        showCustomSnackBar(context, 'Failed to download sample: $e', isError: true);
+      }
+    }
   }
 
   Future<void> _runImport() async {
-    final text = _csvController.text.trim();
-    if (text.isEmpty) {
-      showCustomSnackBar(context, 'Please paste CSV data or pick a file first.', isError: true);
+    if (_csvContent.isEmpty || _parsedLogs.isEmpty) {
+      showCustomSnackBar(context, 'Please upload a .csv file first.', isError: true);
       return;
     }
 
@@ -109,23 +106,23 @@ class _CsvImportSheetState extends State<CsvImportSheet> {
 
     try {
       final garage = context.read<GarageProvider>();
-      final imported = await garage.importFuelLogsFromCsv(
-        text,
+      final count = await garage.importFuelLogsFromCsv(
+        _csvContent,
         replaceExisting: _replaceExisting,
       );
 
       if (mounted) {
         setState(() => _isLoading = false);
-        if (imported > 0) {
+        if (count > 0) {
           Navigator.pop(context);
           showCustomSnackBar(
             context,
-            'Successfully imported $imported logs! Telemetry recalculated.',
+            'Successfully imported $count logs! Telemetry recalculated.',
           );
         } else {
           showCustomSnackBar(
             context,
-            'No valid fuel log rows found in CSV. Please verify column headers.',
+            'No valid log entries found in the file. Please check file format.',
             isError: true,
           );
         }
@@ -140,250 +137,251 @@ class _CsvImportSheetState extends State<CsvImportSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final garage = context.watch<GarageProvider>();
 
     return Container(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 20,
-        bottom: bottomInset > 0 ? bottomInset + 16 : 30,
-      ),
+      padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 32),
       decoration: const BoxDecoration(
         color: AppTheme.cardBg,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Drag Handle
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Drag Handle
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
+                  color: AppTheme.primary.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
                 ),
+                child: const Icon(Icons.file_upload_outlined, color: AppTheme.primary, size: 24),
               ),
-            ),
-            const SizedBox(height: 16),
-
-            // Title
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.file_upload_outlined, color: AppTheme.primary, size: 24),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Bulk CSV Import',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Import Fuel Logs (.csv)',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
-                      Text(
-                        'Import real fuel logs automatically',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close, color: Colors.grey),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Quick Actions: Pick File, Load Sample, Copy Template
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _pickFile,
-                  icon: const Icon(Icons.folder_open, size: 16, color: Colors.white),
-                  label: const Text('Pick .CSV File', style: TextStyle(color: Colors.white, fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.white24),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _loadSampleData,
-                  icon: const Icon(Icons.auto_fix_high, size: 16, color: AppTheme.mileageGreen),
-                  label: const Text('Load Sample Data', style: TextStyle(color: AppTheme.mileageGreen, fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: AppTheme.mileageGreen.withOpacity(0.5)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _copyTemplate,
-                  icon: const Icon(Icons.copy, size: 16, color: AppTheme.distanceBlue),
-                  label: const Text('Copy Template', style: TextStyle(color: AppTheme.distanceBlue, fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: AppTheme.distanceBlue.withOpacity(0.5)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            // CSV Text Area
-            TextField(
-              controller: _csvController,
-              maxLines: 8,
-              style: const TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 12,
-                color: Colors.white70,
-              ),
-              decoration: InputDecoration(
-                hintText: "Paste CSV lines or pick file above...\nFormat:\nrun_id,date,fuel_type,odometer,fuel_cost,liters_to_fill,fuel_density,fill_flag\n1,2026-11-01,XP95,1929,801.00,9.30,750.7,F",
-                hintStyle: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 11,
-                  fontFamily: 'monospace',
-                ),
-                filled: true,
-                fillColor: AppTheme.scaffoldBg,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.white12),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.white12),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppTheme.primary),
+                    ),
+                    Text(
+                      'Target vehicle: ${garage.activeVehicleName}',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close, color: Colors.grey),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
 
-            // Row Count Counter
-            Row(
-              children: [
-                Icon(
-                  _parsedRowCount > 0 ? Icons.check_circle_outline : Icons.info_outline,
-                  size: 16,
-                  color: _parsedRowCount > 0 ? AppTheme.mileageGreen : Colors.grey,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  _parsedRowCount > 0
-                      ? '$_parsedRowCount log entries ready for import'
-                      : 'Paste data or tap "Load Sample Data"',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _parsedRowCount > 0 ? AppTheme.mileageGreen : Colors.grey,
-                    fontWeight: _parsedRowCount > 0 ? FontWeight.bold : FontWeight.normal,
+          // Option 1 & 2: Upload .csv + Download sample.csv
+          Row(
+            children: [
+              // 1. Upload .csv
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isLoading ? null : _pickFile,
+                  icon: const Icon(Icons.upload_file, size: 18, color: Colors.white),
+                  label: const Text(
+                    'Upload .csv',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 10),
+              ),
+              const SizedBox(width: 12),
 
-            // Mode Selector: Append vs Replace
+              // 2. Download sample.csv
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _downloadSampleCsv,
+                  icon: const Icon(Icons.download, size: 18, color: AppTheme.distanceBlue),
+                  label: const Text(
+                    'Sample .csv',
+                    style: TextStyle(color: AppTheme.distanceBlue, fontWeight: FontWeight.bold),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppTheme.distanceBlue),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Selected File Status Banner
+          if (_selectedFileName != null)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
                 color: AppTheme.scaffoldBg,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white10),
+                border: Border.all(color: AppTheme.mileageGreen.withOpacity(0.4)),
               ),
               child: Row(
                 children: [
+                  const Icon(Icons.check_circle, color: AppTheme.mileageGreen, size: 20),
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: InkWell(
-                      onTap: () => setState(() => _replaceExisting = false),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Row(
-                        children: [
-                          Radio<bool>(
-                            value: false,
-                            groupValue: _replaceExisting,
-                            activeColor: AppTheme.primary,
-                            onChanged: (val) => setState(() => _replaceExisting = val ?? false),
-                          ),
-                          const Text('Append', style: TextStyle(fontSize: 13, color: Colors.white)),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: InkWell(
-                      onTap: () => setState(() => _replaceExisting = true),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Row(
-                        children: [
-                          Radio<bool>(
-                            value: true,
-                            groupValue: _replaceExisting,
-                            activeColor: Colors.amber,
-                            onChanged: (val) => setState(() => _replaceExisting = val ?? true),
-                          ),
-                          const Text('Replace All', style: TextStyle(fontSize: 13, color: Colors.amber)),
-                        ],
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _selectedFileName!,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '${_parsedLogs.length} fuel log entries ready to import',
+                          style: const TextStyle(fontSize: 12, color: AppTheme.mileageGreen),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 18),
 
-            // Submit Button
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : _runImport,
-                icon: _isLoading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.cloud_upload_outlined, color: Colors.white),
-                label: Text(
-                  _isLoading
-                      ? 'Importing & Calculating Telemetry...'
-                      : 'Import ${_parsedRowCount > 0 ? "$_parsedRowCount Logs" : "Logs"}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
+          // Option 3 & 4: Append vs Full Replace
+          const Text(
+            'Import Mode:',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white70),
+          ),
+          const SizedBox(height: 8),
+
+          Container(
+            decoration: BoxDecoration(
+              color: AppTheme.scaffoldBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: Column(
+              children: [
+                // Option 3: Append Data
+                InkWell(
+                  onTap: () => setState(() => _replaceExisting = false),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    child: Row(
+                      children: [
+                        Radio<bool>(
+                          value: false,
+                          groupValue: _replaceExisting,
+                          activeColor: AppTheme.primary,
+                          onChanged: (val) => setState(() => _replaceExisting = val ?? false),
+                        ),
+                        const SizedBox(width: 4),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Append Data', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                              Text('Keep current logs and add new entries to the end', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                const Divider(height: 1, color: Colors.white10),
+
+                // Option 4: Full Replace Data
+                InkWell(
+                  onTap: () => setState(() => _replaceExisting = true),
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    child: Row(
+                      children: [
+                        Radio<bool>(
+                          value: true,
+                          groupValue: _replaceExisting,
+                          activeColor: Colors.amber,
+                          onChanged: (val) => setState(() => _replaceExisting = val ?? true),
+                        ),
+                        const SizedBox(width: 4),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Full Replace Data', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 14)),
+                              Text('Wipe existing logs for this vehicle and replace completely', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 20),
+
+          // Confirm Action Button
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: (_isLoading || _parsedLogs.isEmpty) ? null : _runImport,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _replaceExisting ? Colors.amber.shade800 : AppTheme.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Text(
+                      _selectedFileName == null
+                          ? 'Select a .csv File Above'
+                          : (_replaceExisting
+                              ? 'Replace All with ${_parsedLogs.length} Logs'
+                              : 'Append ${_parsedLogs.length} Logs'),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+            ),
+          ),
+        ],
       ),
     );
   }

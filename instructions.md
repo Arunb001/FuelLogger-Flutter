@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
-- **Current Version**: `Version - 2.8.0 (Build 12)`
+- **Current Version**: `Version - 2.9.0 (Build 13)`
 - **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
 - **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
@@ -210,3 +210,23 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
       - Odometer reading is strictly optional on half tank / partial fills (defaults to `0 km`), avoiding false validation blockers.
       - Full tank fills continue to require the closing odometer reading to compute distance and mileage.
     - [x] **Cycle-in-Progress Visual Banner**: Displays a notice when a cycle is currently open with partial fill(s) so users immediately know which run number is being added to.
+
+### Completed in Version 2.9.0 (Build 13):
+
+23. **Settings page — Native CSV File Download & 4-Option Import**:
+    - [x] **Direct .csv File Download**: Tapping "Download CSV" directly triggers native file saving (`FilePicker.saveFile`), saving the actual `.csv` file to the device without opening copy-paste text dialogs.
+    - [x] **Streamlined 4-Option Import Modal**: Removed copy-paste text fields on mobile. Simplified import sheet to provide strictly 4 clean options:
+      1. `Upload .csv`: Selects a local `.csv` file via native storage picker.
+      2. `Download sample.csv`: Downloads a minimal template with only header and 1 sample row.
+      3. `Append Data`: Keeps current logs and adds imported entries.
+      4. `Full Replace Data`: Wipes current vehicle logs and replaces with file data.
+
+24. **Logs page — Chronological Display & UI Cleanup**:
+    - [x] **Correct Ordering by Run # and Timestamp**: Sorted logs with primary key on `runId` descending, secondary key on `createdAt` timestamp descending, and tertiary key on Full Tank (`F`) before Partial (`P`). When logging a half tank followed by a full tank under the same Run #, the full tank fill now cleanly sits on top (row 1), and earlier partial fills sit below it (row 2).
+    - [x] **Removed Bulk Upload**: Cleaned up the Logs page by removing the bulk upload AppBar button and empty-state import button.
+
+25. **Upload page — UI Focus**:
+    - [x] **Removed Bulk Upload Shortcut**: Removed the bottom bulk upload link, keeping the screen 100% focused on single fill-up entries.
+
+26. **User Guide / "How to Use App" Proposal (Under Review)**:
+    - [ ] Proposed: Add a dedicated "How to Use Fuel Logger" card in the Settings page (and optional one-time tip in Home view for brand-new users). Avoids unprompted popups and keeps the interface clean and clutter-free. Waiting for user review before proceeding.
