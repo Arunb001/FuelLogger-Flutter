@@ -93,14 +93,15 @@ class UserGuideSheet extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   _buildGuideCard(
-                    title: 'Full Tank (F) — Closes the Cycle',
+                    title: 'Full Tank (F) — Cycle Calculations',
                     titleColor: AppTheme.mileageGreen,
                     content:
-                        '• Always marks the completion of a mileage cycle.\n'
-                        '• Requires an accurate Odometer reading.\n'
-                        '• The app calculates:\n'
-                        '   Mileage (km/L) = Distance travelled ÷ Liters consumed\n'
-                        '   Cost per km = Total money spent ÷ Distance travelled',
+                        '• Distance Traveled = to_odometer - from_odometer.\n'
+                        '• to_odometer is supplied when the next full fill is recorded.\n'
+                        '• Fuel Consumed = Liters filled at next full refill (exact volume burned to travel that distance).\n'
+                        '• Mileage (km/L) = Distance Traveled ÷ Fuel Consumed.\n'
+                        '• Cost per km = Cost per Liter ÷ Mileage.\n'
+                        '• Active Run: The latest fill has to_odometer = 0 and fuel_consumed = 0 while fuel is currently burning in the tank.',
                   ),
                   const SizedBox(height: 10),
                   _buildGuideCard(

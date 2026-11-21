@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
-- **Current Version**: `Version - 2.10.0 (Build 14)`
+- **Current Version**: `Version - 2.11.0 (Build 15)`
 - **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
 - **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
@@ -239,3 +239,21 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
       4. *Data Backup & CSV Transfer*: Explains Download CSV, Upload .csv, sample template, and Append vs. Replace options.
       5. *Account & Cloud Sync*: Details 150ms instant password login, native Google sign-in fallback, and offline-first cache syncing with Supabase PostgreSQL.
     - [x] **Zero Interruption for Existing Users**: Kept on-demand in Settings without annoying startup popups, keeping the app fast and clutter-free.
+
+### Completed in Version 2.11.0 (Build 15):
+
+27. **Calculation Engine & Supabase DB Sync — Forward-Linking Cycle Math & to_odometer Fix**:
+    - [x] **Forward-Linking Cycle Architecture** (`TelemetryEngine.recalculateCycles`):
+      - Fixed `to_odometer`: Each completed run's `to_odometer` is now populated with the next closing full fill's `from_odometer`.
+      - Fixed `distance_traveled`: Strictly calculated as `to_odometer - from_odometer`.
+      - Fixed `fuel_consumed`: Populated with the next run's `liters_to_fill` (plus any intermediate partial fills), representing the exact volume burned to drive that distance.
+      - Fixed `calculated_mileage`: Computed as `distance_traveled / fuel_consumed`.
+      - Fixed `cost_per_km`: Computed as `cost_per_ltr / calculated_mileage`.
+      - Active Run: The latest fill has `to_odometer = 0`, `fuel_consumed = 0.0`, `distance_traveled = 0.0`, and `calculated_mileage = 0.0` while its fuel is currently in the tank.
+    - [x] **Automatic Cloud DB Sync** (`SupabaseService.syncRecalculatedTelemetry`):
+      - Recalculated values (`to_odometer`, `distance_traveled`, `fuel_consumed`, `calculated_mileage`, `cost_per_km`) are now synced/patched back to the Supabase PostgreSQL `fuel_logs` table automatically on load, add, edit, delete, and CSV import.
+      - Resolves the issue where database rows previously remained at `to_odometer = 0`.
+    - [x] **Logs UI Enhancements** (`LogsView`):
+      - Odometer column now renders `from_odometer → to_odometer` (e.g. `1929 → 2229 km`) for closed cycles, and `1929 km` for open cycles.
+      - Added `fuel_consumed` chip (e.g. `8.50 L used`) and `Active Run (Fuel currently in tank)` indicator on the latest fill.
+      - Exported CSV includes both `from_odometer` and `to_odometer`.

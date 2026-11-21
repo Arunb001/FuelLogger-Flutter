@@ -169,22 +169,23 @@ class CsvService {
     sorted.sort((a, b) => a.runId.compareTo(b.runId));
 
     final buffer = StringBuffer();
-    buffer.writeln('run_id,date,fuel_type,odometer,fuel_cost,liters_to_fill,cost_per_ltr,distance_traveled,fuel_consumed,calculated_mileage,cost_per_km,fuel_density,fill_flag');
+    buffer.writeln('run_id,date,fuel_type,fuel_density,fuel_cost,liters_to_fill,cost_per_ltr,from_odometer,to_odometer,distance_traveled,fuel_consumed,calculated_mileage,cost_per_km,fuel_fill_flag');
 
     for (final l in sorted) {
       buffer.writeln(
         '${l.runId},'
         '${l.date},'
         '${l.fuelType},'
-        '${l.fromOdometer},'
+        '${l.fuelDensity.toStringAsFixed(1)},'
         '${l.fuelCost.toStringAsFixed(2)},'
         '${l.litersToFill.toStringAsFixed(2)},'
         '${l.costPerLtr.toStringAsFixed(2)},'
+        '${l.fromOdometer},'
+        '${l.toOdometer},'
         '${l.distanceTraveled.toStringAsFixed(1)},'
         '${l.fuelConsumed.toStringAsFixed(2)},'
         '${l.calculatedMileage.toStringAsFixed(2)},'
         '${l.costPerKm.toStringAsFixed(2)},'
-        '${l.fuelDensity.toStringAsFixed(1)},'
         '${l.fuelFillFlag}'
       );
     }

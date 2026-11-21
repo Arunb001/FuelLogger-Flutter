@@ -377,4 +377,50 @@ class SupabaseService {
     await CacheService.saveCachedLogs(vehicleId, list);
     return true;
   }
+
+  /// Asynchronously syncs recalculated forward-linking telemetry (to_odometer,
+  /// fuel_consumed, distance_traveled, calculated_mileage, cost_per_km) back to Supabase.
+  static Future<void> syncRecalculatedTelemetry(
+    String vehicleId,
+    List<FuelLog> originalLogs,
+    List<FuelLog> recalculatedLogs,
+  ) async {
+    // 1. Update local offline cache with recalculated logs
+    await CacheService.saveCachedLogs(vehicleId, recalculatedLogs);
+
+    // 2. If authenticated and not a local-only vehicle, update changed records in Supabase
+    if (isAuthenticated && vehicleId.isNotEmpty && !vehicleId.startsWith('local_')) {
+      try {
+        final origMap = <String, FuelLog>{};
+        for (final o in originalLogs) {
+          if (o.id.isNotEmpty) origMap[o.id] = o;
+        }
+
+        for (final log in recalculatedLogs) {
+          if (log.id.isEmpty || log.id.startsWith('log_')) continue;
+          final orig = origMap[log.id];
+
+          final bool needsUpdate = orig == null ||
+              orig.toOdometer != log.toOdometer ||
+              (orig.distanceTraveled - log.distanceTraveled).abs() > 0.01 ||
+              (orig.fuelConsumed - log.fuelConsumed).abs() > 0.01 ||
+              (orig.calculatedMileage - log.calculatedMileage).abs() > 0.01 ||
+              (orig.costPerKm - log.costPerKm).abs() > 0.01 ||
+              (orig.costPerLtr - log.costPerLtr).abs() > 0.01;
+
+          if (needsUpdate) {
+            await client.from('fuel_logs').update({
+              'to_odometer': log.toOdometer,
+              'distance_traveled': log.distanceTraveled,
+              'fuel_consumed': log.fuelConsumed,
+              'calculated_mileage': log.calculatedMileage,
+              'cost_per_km': log.costPerKm,
+              'cost_per_ltr': log.costPerLtr,
+              'fuel_fill_flag': log.fuelFillFlag,
+            }).eq('id', log.id);
+          }
+        }
+      } catch (_) {}
+    }
+  }
 }

@@ -74,10 +74,15 @@ class GarageProvider extends ChangeNotifier {
 
     final vehicleId = _activeVehicle!.id.isNotEmpty ? _activeVehicle!.id : 'local_primary';
     final rawLogs = await SupabaseService.getFuelLogs(vehicleId);
-    _summary = TelemetryEngine.computeSummary(rawLogs);
 
-    // Compute cycle telemetry in-memory and sort reverse-chronological (latest run first)
+    // Compute forward-linking cycle telemetry (to_odometer, fuel_consumed, distance, mileage)
     final recalculated = TelemetryEngine.recalculateCycles(rawLogs);
+    _summary = TelemetryEngine.computeSummary(recalculated);
+
+    // Asynchronously sync to_odometer and recalculated fields back to Supabase DB
+    SupabaseService.syncRecalculatedTelemetry(vehicleId, rawLogs, recalculated);
+
+    // Sort reverse-chronological (latest run first)
     recalculated.sort((a, b) {
       // 1. Primary: latest runId first (descending)
       final rCmp = b.runId.compareTo(a.runId);
@@ -189,12 +194,7 @@ class GarageProvider extends ChangeNotifier {
 
     final vehicleId = _activeVehicle!.id.isNotEmpty ? _activeVehicle!.id : 'local_primary';
 
-    // Derived quick pre-calc
     final double cpl = litersToFill > 0 ? double.parse((fuelCost / litersToFill).toStringAsFixed(2)) : 0.0;
-    final int prevOdo = _summary.latestOdometer;
-    final double dist = (fromOdometer > prevOdo && fuelFillFlag == 'F') ? (fromOdometer - prevOdo).toDouble() : 0.0;
-    final double mileage = (dist > 0 && litersToFill > 0) ? double.parse((dist / litersToFill).toStringAsFixed(2)) : 0.0;
-    final double cpk = (dist > 0 && fuelCost > 0) ? double.parse((fuelCost / dist).toStringAsFixed(2)) : 0.0;
 
     final log = FuelLog(
       id: '',
@@ -209,10 +209,10 @@ class GarageProvider extends ChangeNotifier {
       costPerLtr: cpl,
       fromOdometer: fromOdometer,
       toOdometer: 0,
-      distanceTraveled: dist,
-      fuelConsumed: litersToFill,
-      calculatedMileage: mileage,
-      costPerKm: cpk,
+      distanceTraveled: 0.0,
+      fuelConsumed: 0.0,
+      calculatedMileage: 0.0,
+      costPerKm: 0.0,
       fuelFillFlag: fuelFillFlag,
     );
 

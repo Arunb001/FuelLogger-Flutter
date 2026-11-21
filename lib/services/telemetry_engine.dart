@@ -3,102 +3,121 @@ import '../models/telemetry_summary.dart';
 
 class TelemetryEngine {
   /// Recalculates full cycle telemetry for all logs in chronological order.
+  /// Follows the forward-linking engine:
+  /// - Row i's `to_odometer` is populated from the next closing full fill's `from_odometer`.
+  /// - `distance_traveled` = `to_odometer - from_odometer`.
+  /// - `fuel_consumed` is the next fill's `liters_to_fill` (plus any intermediate partial fills),
+  ///   representing the exact volume burned to travel that distance.
+  /// - `calculated_mileage` = `distance_traveled / fuel_consumed`.
+  /// - `cost_per_km` = `cost_per_ltr / calculated_mileage`.
+  /// - The latest active fill (currently in the vehicle's tank) keeps `to_odometer = 0`,
+  ///   `distance_traveled = 0.0`, `fuel_consumed = 0.0`, and `calculated_mileage = 0.0`.
   static List<FuelLog> recalculateCycles(List<FuelLog> logs) {
     if (logs.isEmpty) return [];
 
-    // Sort ascending by runId, then by flag (P before F)
+    // Sort ascending chronologically (date ASC, runId ASC, P before F, createdAt ASC)
     final sorted = List<FuelLog>.from(logs);
     sorted.sort((a, b) {
+      final dCmp = a.date.compareTo(b.date);
+      if (dCmp != 0) return dCmp;
       final rCmp = a.runId.compareTo(b.runId);
       if (rCmp != 0) return rCmp;
       if (a.isPartial && !b.isPartial) return -1;
       if (!a.isPartial && b.isPartial) return 1;
-      return a.date.compareTo(b.date);
+      if (a.createdAt != null && b.createdAt != null) {
+        return a.createdAt!.compareTo(b.createdAt!);
+      }
+      return 0;
     });
 
     final List<FuelLog> recalculated = [];
-    int cycleStartOdo = 0;
-    double cycleAccumLiters = 0.0;
-    double cycleAccumCost = 0.0;
-    bool inCycle = false;
 
     for (int i = 0; i < sorted.length; i++) {
       final row = sorted[i];
-      final flag = row.fuelFillFlag.toUpperCase();
-      final odo = row.fromOdometer;
-      final liters = row.litersToFill;
+      final flag = row.fuelFillFlag.toUpperCase().trim();
+      final fromOdo = row.fromOdometer;
       final cost = row.fuelCost;
+      final liters = row.litersToFill;
       final cpl = liters > 0 ? double.parse((cost / liters).toStringAsFixed(2)) : 0.0;
 
-      if (!inCycle) {
-        cycleStartOdo = odo;
-        cycleAccumLiters = 0.0;
-        cycleAccumCost = 0.0;
-        inCycle = true;
-      }
-
-      cycleAccumLiters += liters;
-      cycleAccumCost += cost;
-
       if (flag == 'P') {
-        // Partial fill: Telemetry columns are strictly 0.0 until cycle is closed by a Full fill
-        recalculated.add(FuelLog(
-          id: row.id,
-          userId: row.userId,
-          vehicleId: row.vehicleId,
-          runId: row.runId,
-          date: row.date,
-          fuelType: row.fuelType,
-          fuelDensity: row.fuelDensity,
-          fuelCost: cost,
-          litersToFill: liters,
+        // Partial Fill ('P'): Derived telemetry columns are strictly 0.0
+        recalculated.add(row.copyWith(
+          fuelFillFlag: 'P',
           costPerLtr: cpl,
-          fromOdometer: row.fromOdometer,
+          fromOdometer: fromOdo,
           toOdometer: 0,
           distanceTraveled: 0.0,
           fuelConsumed: 0.0,
           calculatedMileage: 0.0,
           costPerKm: 0.0,
-          fuelFillFlag: 'P',
-          createdAt: row.createdAt,
-          updatedAt: row.updatedAt,
         ));
+        continue;
+      }
+
+      // Full Fill ('F'): Look ahead for the next closing full fill
+      int? nextFullIdx;
+      for (int n = i + 1; n < sorted.length; n++) {
+        final nFlag = sorted[n].fuelFillFlag.toUpperCase().trim();
+        final nOdo = sorted[n].fromOdometer;
+        if (nFlag != 'P' && nOdo > 0) {
+          nextFullIdx = n;
+          break;
+        }
+      }
+
+      if (nextFullIdx != null) {
+        final nextRow = sorted[nextFullIdx];
+        final nextOdo = nextRow.fromOdometer;
+        final toOdometer = nextOdo;
+
+        // Sum all fuel pumped into tank between this fill and closing full fill
+        double fuelCons = 0.0;
+        for (int k = i + 1; k <= nextFullIdx; k++) {
+          fuelCons += sorted[k].litersToFill;
+        }
+        fuelCons = double.parse(fuelCons.toStringAsFixed(2));
+
+        final dist = (toOdometer > fromOdo && fromOdo > 0) ? (toOdometer - fromOdo).toDouble() : 0.0;
+        final bool isBreak = (dist > 2000) || (dist <= 0) || (fuelCons > 0 && (dist / fuelCons) > 90);
+
+        if (isBreak || dist <= 0 || fuelCons <= 0) {
+          recalculated.add(row.copyWith(
+            fuelFillFlag: 'F',
+            costPerLtr: cpl,
+            toOdometer: toOdometer,
+            distanceTraveled: isBreak ? 0.0 : dist,
+            fuelConsumed: fuelCons,
+            calculatedMileage: 0.0,
+            costPerKm: 0.0,
+          ));
+        } else {
+          final mileage = double.parse((dist / fuelCons).toStringAsFixed(2));
+          final costKm = (mileage > 0 && cpl > 0)
+              ? double.parse((cpl / mileage).toStringAsFixed(2))
+              : 0.0;
+
+          recalculated.add(row.copyWith(
+            fuelFillFlag: 'F',
+            costPerLtr: cpl,
+            toOdometer: toOdometer,
+            distanceTraveled: dist,
+            fuelConsumed: fuelCons,
+            calculatedMileage: mileage,
+            costPerKm: costKm,
+          ));
+        }
       } else {
-        // Full fill: Closes the cycle and computes complete derived metrics
-        final dist = (odo > cycleStartOdo && i > 0) ? (odo - cycleStartOdo).toDouble() : 0.0;
-        final mileage = (dist > 0 && cycleAccumLiters > 0)
-            ? double.parse((dist / cycleAccumLiters).toStringAsFixed(2))
-            : 0.0;
-        final cpk = (dist > 0 && cycleAccumCost > 0)
-            ? double.parse((cycleAccumCost / dist).toStringAsFixed(2))
-            : 0.0;
-
-        recalculated.add(FuelLog(
-          id: row.id,
-          userId: row.userId,
-          vehicleId: row.vehicleId,
-          runId: row.runId,
-          date: row.date,
-          fuelType: row.fuelType,
-          fuelDensity: row.fuelDensity,
-          fuelCost: cost,
-          litersToFill: liters,
-          costPerLtr: cpl,
-          fromOdometer: row.fromOdometer,
-          toOdometer: cycleStartOdo,
-          distanceTraveled: dist,
-          fuelConsumed: double.parse(cycleAccumLiters.toStringAsFixed(2)),
-          calculatedMileage: mileage,
-          costPerKm: cpk,
+        // Latest open fill: Active fuel burning in tank; subsequent fill not yet recorded
+        recalculated.add(row.copyWith(
           fuelFillFlag: 'F',
-          createdAt: row.createdAt,
-          updatedAt: row.updatedAt,
+          costPerLtr: cpl,
+          toOdometer: 0,
+          distanceTraveled: 0.0,
+          fuelConsumed: 0.0,
+          calculatedMileage: 0.0,
+          costPerKm: 0.0,
         ));
-
-        // Reset cycle baseline for subsequent fill-up cycle
-        cycleStartOdo = odo;
-        cycleAccumLiters = 0.0;
-        cycleAccumCost = 0.0;
       }
     }
 
