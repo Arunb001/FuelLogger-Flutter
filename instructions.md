@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
-- **Current Version**: `Version - 2.9.0 (Build 13)`
+- **Current Version**: `Version - 2.10.0 (Build 14)`
 - **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
 - **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
@@ -228,5 +228,14 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
 25. **Upload page — UI Focus**:
     - [x] **Removed Bulk Upload Shortcut**: Removed the bottom bulk upload link, keeping the screen 100% focused on single fill-up entries.
 
-26. **User Guide / "How to Use App" Proposal (Under Review)**:
-    - [ ] Proposed: Add a dedicated "How to Use Fuel Logger" card in the Settings page (and optional one-time tip in Home view for brand-new users). Avoids unprompted popups and keeps the interface clean and clutter-free. Waiting for user review before proceeding.
+### Completed in Version 2.10.0 (Build 14):
+
+26. **Settings Page — Dedicated "User Guide & FAQs" Bottom Sheet**:
+    - [x] **Settings Card Entry**: Added an interactive "User Guide & FAQs" AMOLED card with navigation chevron in `SettingsView`.
+    - [x] **Comprehensive Interactive Bottom Sheet** (`UserGuideSheet`): Covers 5 core topics:
+      1. *Full Tank vs. Half Tank (Partial Fill)*: Explains cycle closure vs. open cycles, odometer requirements, and how mileage math accumulates.
+      2. *Run Number Progression*: Details how cycles advance and how partial fills stay locked to the active Run #.
+      3. *Editing & Correcting Logs*: Details calendar date picking, odometer/liters edits, and auto-recalculation.
+      4. *Data Backup & CSV Transfer*: Explains Download CSV, Upload .csv, sample template, and Append vs. Replace options.
+      5. *Account & Cloud Sync*: Details 150ms instant password login, native Google sign-in fallback, and offline-first cache syncing with Supabase PostgreSQL.
+    - [x] **Zero Interruption for Existing Users**: Kept on-demand in Settings without annoying startup popups, keeping the app fast and clutter-free.

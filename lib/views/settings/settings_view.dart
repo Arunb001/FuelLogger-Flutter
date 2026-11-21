@@ -12,6 +12,7 @@ import '../../services/cache_service.dart';
 import '../../models/fuel_log.dart';
 import '../auth/login_view.dart';
 import '../logs/csv_import_sheet.dart';
+import 'user_guide_sheet.dart';
 
 class SettingsView extends StatefulWidget {
   const SettingsView({Key? key}) : super(key: key);
@@ -694,6 +695,48 @@ class _SettingsViewState extends State<SettingsView> {
                       ],
                     ),
                   ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Card: User Guide & FAQs
+            Card(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => UserGuideSheet.show(context),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.mileageGreen.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.menu_book_outlined, color: AppTheme.mileageGreen, size: 22),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Text(
+                              'User Guide & FAQs',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                            ),
+                            SizedBox(height: 3),
+                            Text(
+                              'Rules for full/half tanks, odometer, edits & CSV',
+                              style: TextStyle(fontSize: 11, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                    ],
+                  ),
                 ),
               ),
             ),
