@@ -5,6 +5,7 @@ import '../models/telemetry_summary.dart';
 import '../services/supabase_service.dart';
 import '../services/telemetry_engine.dart';
 import '../services/cache_service.dart';
+import '../services/csv_service.dart';
 
 class GarageProvider extends ChangeNotifier {
   List<Vehicle> _vehicles = [];
@@ -227,6 +228,33 @@ class GarageProvider extends ChangeNotifier {
       return true;
     }
     return false;
+  }
+
+  Future<int> importFuelLogsFromCsv(String csvText, {bool replaceExisting = false}) async {
+    if (_activeVehicle == null) return 0;
+    final vehicleId = _activeVehicle!.id.isNotEmpty ? _activeVehicle!.id : 'local_primary';
+
+    final parsed = CsvService.parseCsv(
+      csvText,
+      userId: SupabaseService.userId,
+      vehicleId: vehicleId,
+      startRunId: replaceExisting ? 1 : (_summary.nextSno),
+    );
+
+    if (parsed.isEmpty) return 0;
+
+    await SupabaseService.bulkInsertFuelLogs(
+      vehicleId,
+      parsed,
+      replaceExisting: replaceExisting,
+    );
+
+    await _loadLogsForActiveVehicle();
+    return parsed.length;
+  }
+
+  String exportFuelLogsToCsv() {
+    return CsvService.exportLogsToCsv(_fuelLogs);
   }
 
   void addCustomFuelType(String name) {

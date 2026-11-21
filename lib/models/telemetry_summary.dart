@@ -31,6 +31,7 @@ class TelemetrySummary {
   final double latestDistance;
   final int nextSno;
   final int lastSno;
+  final bool isCycleOpen;
   final int totalEntries;
   final int latestOdometer;
   final Map<String, FuelTypeMetrics> byFuelType;
@@ -46,6 +47,7 @@ class TelemetrySummary {
     this.latestDistance = 0.0,
     this.nextSno = 1,
     this.lastSno = 0,
+    this.isCycleOpen = false,
     this.totalEntries = 0,
     this.latestOdometer = 0,
     this.byFuelType = const {},

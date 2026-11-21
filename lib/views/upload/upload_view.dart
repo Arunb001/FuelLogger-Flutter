@@ -6,6 +6,7 @@ import '../../providers/garage_provider.dart';
 import '../../services/cache_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_snackbar.dart';
+import '../logs/csv_import_sheet.dart';
 
 class UploadView extends StatefulWidget {
   const UploadView({Key? key}) : super(key: key);
@@ -34,6 +35,9 @@ class _UploadViewState extends State<UploadView> {
     final garage = context.read<GarageProvider>();
     _snoController.text = garage.summary.nextSno.toString();
     _dateController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    if (garage.summary.isCycleOpen) {
+      _fillFlag = 'P';
+    }
     if (garage.fuelTypes.isNotEmpty) {
       _selectedFuelType = garage.fuelTypes.first;
     }
@@ -53,11 +57,9 @@ class _UploadViewState extends State<UploadView> {
   void _setFillMode(String mode) {
     setState(() {
       _fillFlag = mode;
-      final garage = context.read<GarageProvider>();
-      if (mode == 'P') {
-        _snoController.text = (garage.summary.lastSno > 0 ? garage.summary.lastSno : 1).toString();
-      } else {
-        _snoController.text = garage.summary.nextSno.toString();
+      // Do not decrement or alter the run number - it remains the active cycle run number!
+      if (_snoController.text.trim().isEmpty) {
+        _snoController.text = context.read<GarageProvider>().summary.nextSno.toString();
       }
     });
   }
@@ -187,6 +189,30 @@ class _UploadViewState extends State<UploadView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Cycle in progress indicator
+              if (garage.summary.isCycleOpen)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.orange.withOpacity(0.35)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.hourglass_top, color: Colors.orangeAccent, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Run #${garage.summary.nextSno} is currently open with partial fill(s). This fill will log under Run #${garage.summary.nextSno}.',
+                          style: const TextStyle(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               // Fill Type Selector Row (Full vs Partial)
               Row(
                 children: [
@@ -335,12 +361,26 @@ class _UploadViewState extends State<UploadView> {
                         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         textAlign: TextAlign.center,
                         decoration: InputDecoration(
-                          labelText: 'Odometer Reading (km) *',
-                          hintText: prevOdo > 0 ? 'Last: $prevOdo km' : 'e.g. 15000',
+                          labelText: isFull
+                              ? 'Odometer Reading (km) *'
+                              : 'Odometer Reading (Optional for Half Tank)',
+                          hintText: isFull
+                              ? (prevOdo > 0 ? 'Last: $prevOdo km' : 'e.g. 15000')
+                              : '0 km (Not required for half tank)',
                           prefixIcon: const Icon(Icons.speed, size: 20),
                         ),
                         onChanged: (_) => setState(() {}),
                         validator: (v) {
+                          if (!isFull) {
+                            // Odometer reading is strictly NOT required on half tank / partial fills!
+                            if (v == null || v.trim().isEmpty || v.trim() == '0') {
+                              return null; // Valid (will default to 0)
+                            }
+                            final n = int.tryParse(v.trim());
+                            if (n == null || n < 0) return 'Enter valid odometer number';
+                            return null;
+                          }
+                          // Full tank fills require odometer to compute cycle distance and mileage
                           if (v == null || v.trim().isEmpty) return 'Odometer reading is required *';
                           final n = int.tryParse(v.trim());
                           if (n == null || n < 0) return 'Enter valid odometer number *';
@@ -435,6 +475,17 @@ class _UploadViewState extends State<UploadView> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+              ),
+              const SizedBox(height: 12),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () => CsvImportSheet.show(context),
+                  icon: const Icon(Icons.file_upload_outlined, size: 16, color: AppTheme.distanceBlue),
+                  label: const Text(
+                    'Or bulk import multiple fill-ups via CSV',
+                    style: TextStyle(color: AppTheme.distanceBlue, fontSize: 13),
+                  ),
+                ),
               ),
               const SizedBox(height: 20),
             ],

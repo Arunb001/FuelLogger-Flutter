@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
-- **Current Version**: `Version - 2.7.1 (Build 11)`
+- **Current Version**: `Version - 2.8.0 (Build 12)`
 - **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
 - **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
@@ -185,3 +185,28 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
     - [x] **Graceful OAuth Fallback on PROD**: When native Google Sign-In encounters `ApiException: 10` (from unregistered debug SHA-1 on Google Cloud Console), the app automatically falls back to Supabase Web OAuth. Because Option 1 was completed (`fuellogger://**` registered in Supabase), it redirects cleanly back into the app (`fuellogger://auth`) instead of showing an error.
     - [x] **Extracted Machine Signing Fingerprints**: Extracted exact SHA-1 (`A7:53:C5:F8:01:F0:BE:8D:68:B2:B3:0F:C2:EA:D5:54:6A:33:C1:E3`) and SHA-256 for one-step registration in Google Cloud Console.
     - [x] **Rebuilt Both APKs**: Compiled updated release APKs for Build 11.
+
+### Completed in Version 2.8.0 (Build 12):
+
+20. **Logs Page — Interactive Date Editing**:
+    - [x] **Date Editing in Log Dialog**: Added interactive Date Picker (`showDatePicker`) with calendar indicator (`yyyy-MM-dd`) inside the Edit Log dialog on the Logs page.
+    - [x] **Sync & Recalculate**: Updating a log's date now properly updates Supabase PostgreSQL and local cache, re-sorting runs chronologically and recalculating cycle telemetry automatically.
+
+21. **Automated Data Entry — Bulk CSV Import (Method 2)**:
+    - [x] **In-App CSV Import Engine**: Added `CsvService` and `CsvImportSheet` supporting `.csv` and `.txt` file selection via Android Storage Access Framework (`file_picker`), as well as direct text pasting.
+    - [x] **Smart Header Detection**: Auto-detects custom column layouts (run #, date, fuel type, odometer, cost, liters, density, fill flag) and parses comma, semicolon, or tab delimited formats.
+    - [x] **One-Tap Actions**: Included "Pick .CSV File", "Load Sample Data" (5-row instant preview), and "Copy Template" buttons.
+    - [x] **Flexible Append vs. Replace**: Users can choose to append imported rows to the existing vehicle logbook or replace existing records.
+    - [x] **Sample Template File**: Generated [`sample_fuel_data.csv`](file:///C:/Users/arunb/PycharmProjects/FuelLogger-Flutter/sample_fuel_data.csv) in the project workspace with realistic vehicle fuel telemetry data.
+    - [x] **Accessible Everywhere**: Added quick-access CSV import buttons in Logs View (AppBar and empty state), Settings View (under Backup & Transfer), and Upload View.
+
+22. **Upload Fill-Up — Half Tank Cycle Logic & Optional Odometer**:
+    - [x] **Run # Progression Fixed for Partial Fills**:
+      - If the last fill was Full Tank (e.g. Run #11), selecting 1st half tank now stays at Run #12.
+      - If 2nd half tank is logged, it stays at Run #12.
+      - Run #12 remains the same across all partial fills until closed by a Full Tank fill.
+      - Mode toggle between Full and Half no longer decrements or alters the active cycle run number.
+    - [x] **Odometer Optional for Half Tank Fills**:
+      - Odometer reading is strictly optional on half tank / partial fills (defaults to `0 km`), avoiding false validation blockers.
+      - Full tank fills continue to require the closing odometer reading to compute distance and mileage.
+    - [x] **Cycle-in-Progress Visual Banner**: Displays a notice when a cycle is currently open with partial fill(s) so users immediately know which run number is being added to.

@@ -183,6 +183,22 @@ class TelemetryEngine {
       );
     });
 
+    // Calculate active run ID:
+    // A run ID only advances after a full tank fill has closed the cycle.
+    // If the last fill was partial, the run ID remains the same until closed by a full tank fill.
+    int activeRunId = 1;
+    bool isCycleOpen = false;
+
+    if (logs.isNotEmpty) {
+      final lastLog = logs.last;
+      isCycleOpen = lastLog.isPartial;
+      if (isCycleOpen) {
+        activeRunId = lastLog.runId;
+      } else {
+        activeRunId = maxSno + 1;
+      }
+    }
+
     return TelemetrySummary(
       totalDistance: totalDist,
       avgMileage: avgMileage,
@@ -192,8 +208,9 @@ class TelemetryEngine {
       lowestMileage: lowestMileage,
       latestAvgMileage: latestMileage,
       latestDistance: latestDist,
-      nextSno: maxSno + 1,
+      nextSno: activeRunId,
       lastSno: lastSno,
+      isCycleOpen: isCycleOpen,
       totalEntries: logs.length,
       latestOdometer: latestOdo,
       byFuelType: byFuelType,

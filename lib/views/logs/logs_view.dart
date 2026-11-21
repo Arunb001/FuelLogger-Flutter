@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../providers/garage_provider.dart';
 import '../../theme/app_theme.dart';
@@ -6,6 +7,7 @@ import '../../models/fuel_log.dart';
 import '../../services/cache_service.dart';
 import '../../widgets/custom_snackbar.dart';
 import '../upload/upload_view.dart';
+import 'csv_import_sheet.dart';
 
 class LogsView extends StatelessWidget {
   const LogsView({Key? key}) : super(key: key);
@@ -57,6 +59,8 @@ class LogsView extends StatelessWidget {
   }
 
   void _showEditDialog(BuildContext context, FuelLog log) {
+    String editDate = log.date;
+    final dateCtrl = TextEditingController(text: editDate);
     final costCtrl = TextEditingController(text: log.fuelCost.toString());
     final litersCtrl = TextEditingController(text: log.litersToFill.toString());
     final odoCtrl = TextEditingController(text: log.fromOdometer.toString());
@@ -64,63 +68,126 @@ class LogsView extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: AppTheme.cardBg,
-          title: Text('Edit Run #${log.runId}', style: const TextStyle(fontWeight: FontWeight.bold)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: costCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Total Cost (₹)', prefixIcon: Icon(Icons.currency_rupee, size: 18)),
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppTheme.cardBg,
+              title: Row(
+                children: [
+                  const Icon(Icons.edit_note, color: AppTheme.primary, size: 22),
+                  const SizedBox(width: 8),
+                  Text('Edit Run #${log.runId}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Date Edit Field with DatePicker
+                    InkWell(
+                      onTap: () async {
+                        final initial = DateTime.tryParse(editDate) ?? DateTime.now();
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: initial,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                          builder: (c, child) {
+                            return Theme(
+                              data: ThemeData.dark().copyWith(
+                                colorScheme: const ColorScheme.dark(
+                                  primary: AppTheme.primary,
+                                  surface: AppTheme.cardBg,
+                                ),
+                              ),
+                              child: child!,
+                            );
+                          },
+                        );
+                        if (picked != null) {
+                          setDialogState(() {
+                            editDate = DateFormat('yyyy-MM-dd').format(picked);
+                            dateCtrl.text = editDate;
+                          });
+                        }
+                      },
+                      child: IgnorePointer(
+                        child: TextField(
+                          controller: dateCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Date (YYYY-MM-DD)',
+                            prefixIcon: Icon(Icons.calendar_today, size: 18),
+                            suffixIcon: Icon(Icons.edit_calendar, size: 18, color: AppTheme.primary),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: costCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Total Cost (₹)',
+                        prefixIcon: Icon(Icons.currency_rupee, size: 18),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: litersCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Litres Filled',
+                        prefixIcon: Icon(Icons.water_drop, size: 18),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: odoCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Odometer (km)',
+                        prefixIcon: Icon(Icons.speed, size: 18),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: litersCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Litres Filled', prefixIcon: Icon(Icons.water_drop, size: 18)),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
                 ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: odoCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Odometer (km)', prefixIcon: Icon(Icons.speed, size: 18)),
+                ElevatedButton(
+                  onPressed: () async {
+                    final newCost = double.tryParse(costCtrl.text.trim()) ?? log.fuelCost;
+                    final newLiters = double.tryParse(litersCtrl.text.trim()) ?? log.litersToFill;
+                    final newOdo = int.tryParse(odoCtrl.text.trim()) ?? log.fromOdometer;
+
+                    Navigator.pop(ctx);
+                    final ok = await context.read<GarageProvider>().updateFuelLog(log.id, {
+                      'date': editDate,
+                      'fuel_cost': newCost,
+                      'liters_to_fill': newLiters,
+                      'from_odometer': newOdo,
+                    });
+
+                    if (context.mounted) {
+                      if (ok) {
+                        showCustomSnackBar(context, 'Run #${log.runId} updated and recalculated!');
+                      } else {
+                        showCustomSnackBar(context, 'Failed to update log.', isError: true);
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Save Changes', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
-            ElevatedButton(
-              onPressed: () async {
-                final newCost = double.tryParse(costCtrl.text.trim()) ?? log.fuelCost;
-                final newLiters = double.tryParse(litersCtrl.text.trim()) ?? log.litersToFill;
-                final newOdo = int.tryParse(odoCtrl.text.trim()) ?? log.fromOdometer;
-
-                Navigator.pop(ctx);
-                final ok = await context.read<GarageProvider>().updateFuelLog(log.id, {
-                  'fuel_cost': newCost,
-                  'liters_to_fill': newLiters,
-                  'from_odometer': newOdo,
-                });
-
-                if (context.mounted) {
-                  if (ok) {
-                    showCustomSnackBar(context, 'Run #${log.runId} updated and recalculated!');
-                  } else {
-                    showCustomSnackBar(context, 'Failed to update log.', isError: true);
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Save Changes', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-          ],
+            );
+          },
         );
       },
     );
@@ -134,6 +201,13 @@ class LogsView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text('Logs — ${garage.activeVehicleName}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.file_upload_outlined, color: Colors.white),
+            tooltip: 'Bulk Import CSV',
+            onPressed: () => CsvImportSheet.show(context),
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () => garage.loadGarage(),
@@ -174,6 +248,20 @@ class LogsView extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           elevation: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: () => CsvImportSheet.show(context),
+                        icon: const Icon(Icons.file_upload_outlined, size: 18, color: AppTheme.distanceBlue),
+                        label: const Text(
+                          'Bulk Import from CSV',
+                          style: TextStyle(color: AppTheme.distanceBlue, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppTheme.distanceBlue),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
                     ],

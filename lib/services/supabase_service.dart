@@ -297,13 +297,71 @@ class SupabaseService {
     if (idx != -1) {
       final existing = list[idx];
       final updated = existing.copyWith(
+        date: data['date'] != null ? data['date'].toString() : existing.date,
         fuelCost: data['fuel_cost'] != null ? (data['fuel_cost'] as num).toDouble() : existing.fuelCost,
         litersToFill: data['liters_to_fill'] != null ? (data['liters_to_fill'] as num).toDouble() : existing.litersToFill,
         fromOdometer: data['from_odometer'] != null ? (data['from_odometer'] as num).toInt() : existing.fromOdometer,
+        fuelType: data['fuel_type'] != null ? data['fuel_type'].toString() : existing.fuelType,
+        fuelDensity: data['fuel_density'] != null ? (data['fuel_density'] as num).toDouble() : existing.fuelDensity,
+        fuelFillFlag: data['fuel_fill_flag'] != null ? data['fuel_fill_flag'].toString() : existing.fuelFillFlag,
       );
       list[idx] = updated;
       await CacheService.saveCachedLogs(vehicleId, list);
     }
+    return true;
+  }
+
+  static Future<bool> bulkInsertFuelLogs(
+    String vehicleId,
+    List<FuelLog> logs, {
+    bool replaceExisting = false,
+  }) async {
+    if (vehicleId.isEmpty || logs.isEmpty) return false;
+
+    if (isAuthenticated && !vehicleId.startsWith('local_')) {
+      try {
+        if (replaceExisting) {
+          await client.from('fuel_logs').delete().eq('vehicle_id', vehicleId);
+        }
+
+        final payload = logs.map((l) {
+          final m = l.toJson();
+          m.remove('id'); // let Postgres generate UUIDs
+          m['vehicle_id'] = vehicleId;
+          m['user_id'] = userId;
+          return m;
+        }).toList();
+
+        // Batch in chunks of 50
+        for (int i = 0; i < payload.length; i += 50) {
+          final end = (i + 50 < payload.length) ? i + 50 : payload.length;
+          final batch = payload.sublist(i, end);
+          await client.from('fuel_logs').insert(batch);
+        }
+
+        final fresh = await client
+            .from('fuel_logs')
+            .select()
+            .eq('vehicle_id', vehicleId)
+            .order('run_id', ascending: true);
+        final freshLogs = (fresh as List).map((x) => FuelLog.fromJson(x)).toList();
+        await CacheService.saveCachedLogs(vehicleId, freshLogs);
+        return true;
+      } catch (_) {}
+    }
+
+    // Local / Offline fallback
+    List<FuelLog> current = replaceExisting ? [] : CacheService.getCachedLogs(vehicleId);
+    final mapped = logs.map((l) {
+      return l.copyWith(
+        id: 'log_${DateTime.now().millisecondsSinceEpoch}_${l.runId}',
+        userId: userId,
+        vehicleId: vehicleId,
+      );
+    }).toList();
+
+    current.addAll(mapped);
+    await CacheService.saveCachedLogs(vehicleId, current);
     return true;
   }
 

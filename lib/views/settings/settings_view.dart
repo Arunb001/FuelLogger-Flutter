@@ -8,6 +8,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/custom_snackbar.dart';
 import '../../services/cache_service.dart';
 import '../auth/login_view.dart';
+import '../logs/csv_import_sheet.dart';
 
 class SettingsView extends StatefulWidget {
   const SettingsView({Key? key}) : super(key: key);
@@ -611,27 +612,43 @@ class _SettingsViewState extends State<SettingsView> {
                   children: [
                     Row(
                       children: const [
-                        Icon(Icons.file_download_outlined, color: AppTheme.mileageGreen, size: 20),
+                        Icon(Icons.import_export, color: AppTheme.distanceBlue, size: 22),
                         SizedBox(width: 8),
-                        Text('Export Vehicle Data', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        Text('Data Backup & CSV Transfer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Export all logs for \'${garage.activeVehicleName}\' to CSV format:',
+                      'Bulk import fuel logs from CSV or export all logs for \'${garage.activeVehicleName}\':',
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                     const SizedBox(height: 14),
-                    ElevatedButton.icon(
-                      onPressed: () => _showExportDialog(garage),
-                      icon: const Icon(Icons.download, size: 18, color: Colors.black),
-                      label: const Text('Export Logs (CSV)', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.mileageGreen,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () => CsvImportSheet.show(context),
+                          icon: const Icon(Icons.file_upload_outlined, size: 18, color: Colors.white),
+                          label: const Text('Import CSV', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => _showExportDialog(garage),
+                          icon: const Icon(Icons.download, size: 18, color: AppTheme.mileageGreen),
+                          label: const Text('Export CSV', style: TextStyle(color: AppTheme.mileageGreen, fontWeight: FontWeight.bold)),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppTheme.mileageGreen),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
