@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
+import '../services/cache_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   User? _user = SupabaseService.currentUser;
@@ -245,6 +246,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    await CacheService.clearUserCache();
     await SupabaseService.signOut();
     _user = null;
     _isGuest = false;

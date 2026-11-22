@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
-- **Current Version**: `Version - 2.12.0 (Build 16)`
+- **Current Version**: `Version - 2.13.0 (Build 17)`
 - **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
 - **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
@@ -273,3 +273,27 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
     - [x] **Calculations Page — Old App Styled Fuel Type Cards** (`CalculationsView`):
       - Each fuel type card box now features an accent border (`width: 1.5`) and indicator dot dynamically matching the user-defined fuel color (retrieved via `CacheService.getFuelColorHex(ftName)`).
       - Replaced hardcoded grey borders and red dots with user-defined theme colors, restoring the old app's visual style.
+
+### Completed in Version 2.13.0 (Build 17):
+
+29. **Multi-Account Cache Isolation & Strictly Single Default Fuel ("Standard petrol")**:
+    - [x] **Multi-Account User Cache Clear & Reset** (`CacheService.clearUserCache`, `GarageProvider.resetOnSignOut`, `AuthProvider.signOut`):
+      - When signing out or switching email accounts, `CacheService.clearUserCache()` resets cached vehicles, active vehicle, cached fuel logs, home summary metrics, and custom fuel colors.
+      - `GarageProvider.resetOnSignOut()` wipes in-memory garage and fuel types so a new login starts with a 100% clean slate.
+      - Automatic user account detection in `GarageProvider.loadGarage()` checks `currentUid != _loadedUserId` and triggers reset if an account switch occurs without restart.
+    - [x] **Strictly Single Default Fuel Type ("Standard petrol")** (`CacheService.getCachedFuelTypes`):
+      - Added migration check `_keyFuelTypesMigratedV2` in `CacheService` that detects and cleans legacy multi-default arrays (`XP95`, `XP100`, etc.) left behind on existing installs.
+      - Any new user or freshly signed-in account is guaranteed to start with strictly ONE fuel type: `['Standard petrol']` (with its designated `#FF5252` red accent).
+      - Fuel types dropdown in `UploadView` and chips in `SettingsView` now cleanly show only `Standard petrol` with the `➕ Add Custom Fuel Type...` option.
+    - [x] **Fixed Cross-Account Vehicle Leaking** (`SupabaseService.getVehicles`):
+      - When an authenticated user has zero vehicles in the Supabase cloud database, the app now auto-provisions a fresh `My Vehicle` for this user directly in Supabase.
+      - Prevented brand new accounts from inheriting another user's locally cached vehicle.
+
+30. **Interactive Developer Support Card with Direct Email Redirection** (`SettingsView`, `AndroidManifest.xml`):
+    - [x] **Clickable AMOLED Support Card**:
+      - Replaced the static support text in `SettingsView` with an interactive, AMOLED-styled Card featuring an amber mail icon, bold "Developer Support" title, and `arunbaalajiabs@gmail.com` subtitle.
+    - [x] **Sleek "Email" Button**:
+      - Added a clean `ElevatedButton.icon` with a send icon (`Icons.send_rounded`) and subtle red accent border that harmonizes with the AMOLED dark theme.
+    - [x] **Direct Native Email Redirection** (`url_launcher`):
+      - Tapping anywhere on the Card or tapping the "Email" button opens the device's native email client (Gmail, Outlook, etc.) with pre-filled `mailto:arunbaalajiabs@gmail.com?subject=Fuel%20Logger%20Support%20%26%20Feedback`.
+      - Added the `<queries>` intent filter for `mailto:` to `android/app/src/main/AndroidManifest.xml` to comply with Android 11+ (API 30+) package visibility requirements.

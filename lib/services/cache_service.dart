@@ -12,6 +12,7 @@ class CacheService {
   static const String _keyHomeSummary = 'cached_home_summary_';
   static const String _keyFuelTypes = 'cached_fuel_types';
   static const String _keyFuelColors = 'cached_fuel_colors';
+  static const String _keyFuelTypesMigratedV2 = 'fuel_types_migrated_v2_single';
 
   static const List<String> fuelColorPalette = [
     '#FF9800', // Amber / Orange
@@ -165,6 +166,20 @@ class CacheService {
   // ── Cached Fuel Types ──
 
   static List<String> getCachedFuelTypes() {
+    // One-time migration to strictly single default fuel ("Standard petrol")
+    final migratedFlag = _prefs?.getBool(_keyFuelTypesMigratedV2) ?? false;
+    if (!migratedFlag) {
+      _prefs?.setBool(_keyFuelTypesMigratedV2, true);
+      final existing = _prefs?.getStringList(_keyFuelTypes);
+      // If cached fuel types contain legacy multi-defaults (e.g. XP95 + XP100 + Unleaded), reset to strictly single default
+      if (existing == null ||
+          existing.isEmpty ||
+          (existing.contains('XP95') && existing.contains('XP100') && existing.length >= 3)) {
+        _prefs?.setStringList(_keyFuelTypes, ['Standard petrol']);
+        return ['Standard petrol'];
+      }
+    }
+
     final list = _prefs?.getStringList(_keyFuelTypes);
     if (list != null && list.isNotEmpty) {
       // Migrate old "Standard / Unleaded" to "Standard petrol"
@@ -182,6 +197,28 @@ class CacheService {
 
   static Future<void> saveCachedFuelTypes(List<String> types) async {
     await _prefs?.setStringList(_keyFuelTypes, types);
+  }
+
+  /// Clears user-specific session cache when signing out or switching accounts.
+  static Future<void> clearUserCache() async {
+    final prefs = _prefs;
+    if (prefs == null) return;
+    try {
+      await prefs.remove(_keyActiveVehicle);
+      await prefs.remove(_keyCachedVehicles);
+      await prefs.remove(_keyFuelColors);
+      // Reset fuel types strictly to ['Standard petrol']
+      await prefs.setStringList(_keyFuelTypes, ['Standard petrol']);
+      await prefs.setBool(_keyFuelTypesMigratedV2, true);
+
+      // Clean all vehicle logs and summary metrics
+      final keys = List<String>.from(prefs.getKeys());
+      for (final k in keys) {
+        if (k.startsWith(_keyPrefixLogs) || k.startsWith(_keyHomeSummary)) {
+          await prefs.remove(k);
+        }
+      }
+    } catch (_) {}
   }
 
   // ── Cached Fuel Colors ──

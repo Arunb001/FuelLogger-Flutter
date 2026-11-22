@@ -127,18 +127,18 @@ class SupabaseService {
           return vehicles;
         }
 
-        // If user has cached vehicles, return them instead of overwriting with 'My Vehicle'
-        final localCached = CacheService.getCachedVehicles();
-        if (localCached.isNotEmpty) {
-          return localCached;
-        }
-
-        // If user has 0 vehicles in cloud AND 0 in cache, auto-provision initial vehicle
+        // If authenticated user has 0 vehicles in cloud (new user), auto-provision initial vehicle
         final initial = await addVehicle('My Vehicle');
         if (initial != null) {
           return [initial];
         }
-      } catch (_) {}
+      } catch (_) {
+        // Network or offline error: fallback to locally cached vehicles
+        final localCached = CacheService.getCachedVehicles();
+        if (localCached.isNotEmpty) {
+          return localCached;
+        }
+      }
     }
 
     // 2. Fallback to locally cached vehicles

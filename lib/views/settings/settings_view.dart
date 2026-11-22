@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import '../../providers/garage_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -197,6 +198,7 @@ class _SettingsViewState extends State<SettingsView> {
             ElevatedButton(
               onPressed: () async {
                 Navigator.pop(ctx);
+                context.read<GarageProvider>().resetOnSignOut();
                 await context.read<AuthProvider>().signOut();
                 if (mounted) {
                   Navigator.of(context).pushAndRemoveUntil(
@@ -215,6 +217,31 @@ class _SettingsViewState extends State<SettingsView> {
         );
       },
     );
+  }
+
+  Future<void> _launchSupportEmail() async {
+    final Uri emailLaunchUri = Uri(
+      scheme: 'mailto',
+      path: 'arunbaalajiabs@gmail.com',
+      queryParameters: {
+        'subject': 'Fuel Logger Support & Feedback',
+      },
+    );
+    try {
+      if (await canLaunchUrl(emailLaunchUri)) {
+        await launchUrl(emailLaunchUri, mode: LaunchMode.externalApplication);
+      } else {
+        await launchUrl(emailLaunchUri, mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {
+      if (mounted) {
+        showCustomSnackBar(
+          context,
+          'Could not open mail app. Support email: arunbaalajiabs@gmail.com',
+          isError: true,
+        );
+      }
+    }
   }
 
   void _showFuelColorPicker(BuildContext context, String fuelType, GarageProvider garage) {
@@ -742,21 +769,57 @@ class _SettingsViewState extends State<SettingsView> {
             ),
             const SizedBox(height: 20),
 
-            // Support info
+            // Developer Support & Feedback Card
             Card(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Row(
-                  children: const [
-                    Icon(Icons.headset_mic_outlined, color: AppTheme.costAmber, size: 20),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Developer Support • arunbaalajiabs@gmail.com',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: _launchSupportEmail,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.costAmber.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.mail_outline_rounded, color: AppTheme.costAmber, size: 22),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Text(
+                              'Developer Support',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                            ),
+                            SizedBox(height: 3),
+                            Text(
+                              'arunbaalajiabs@gmail.com',
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: _launchSupportEmail,
+                        icon: const Icon(Icons.send_rounded, size: 14),
+                        label: const Text('Email', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primary.withOpacity(0.18),
+                          foregroundColor: AppTheme.primary,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: BorderSide(color: AppTheme.primary.withOpacity(0.4)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

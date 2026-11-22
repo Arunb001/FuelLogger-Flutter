@@ -13,11 +13,24 @@ class GarageProvider extends ChangeNotifier {
   List<FuelLog> _fuelLogs = [];
   TelemetrySummary _summary = TelemetrySummary.empty();
   bool _isLoading = false;
+  String? _loadedUserId;
 
   List<String> _fuelTypes = CacheService.getCachedFuelTypes();
 
   GarageProvider() {
     _initFromCache();
+  }
+
+  /// Resets in-memory garage and fuel types when signing out or switching accounts
+  void resetOnSignOut() {
+    _vehicles = [];
+    _activeVehicle = null;
+    _fuelLogs = [];
+    _summary = TelemetrySummary.empty();
+    _fuelTypes = CacheService.getCachedFuelTypes();
+    _loadedUserId = null;
+    _isLoading = false;
+    notifyListeners();
   }
 
   void _initFromCache() {
@@ -78,6 +91,15 @@ class GarageProvider extends ChangeNotifier {
   List<String> get fuelTypes => _fuelTypes;
 
   Future<void> loadGarage() async {
+    final currentUid = SupabaseService.userId;
+    if (_loadedUserId != null && _loadedUserId != currentUid) {
+      resetOnSignOut();
+    }
+    _loadedUserId = currentUid;
+
+    // Refresh fuel types from cache
+    _fuelTypes = CacheService.getCachedFuelTypes();
+
     // Only show loading indicator if we don't already have cached vehicles
     if (_vehicles.isEmpty) {
       _isLoading = true;
@@ -156,6 +178,15 @@ class GarageProvider extends ChangeNotifier {
 
     final vehicleId = _activeVehicle!.id.isNotEmpty ? _activeVehicle!.id : 'local_primary';
     final rawLogs = await SupabaseService.getFuelLogs(vehicleId);
+
+    if (rawLogs.isEmpty) {
+      _fuelLogs = [];
+      _summary = TelemetrySummary.empty();
+      CacheService.saveCachedHomeSummary(vehicleId, 0.0, 0.0);
+      CacheService.saveCachedLogs(vehicleId, []);
+      notifyListeners();
+      return;
+    }
 
     // Compute forward-linking cycle telemetry (to_odometer, fuel_consumed, distance, mileage)
     final recalculated = TelemetryEngine.recalculateCycles(rawLogs);
