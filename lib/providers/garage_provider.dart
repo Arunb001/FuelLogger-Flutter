@@ -16,6 +16,59 @@ class GarageProvider extends ChangeNotifier {
 
   List<String> _fuelTypes = CacheService.getCachedFuelTypes();
 
+  GarageProvider() {
+    _initFromCache();
+  }
+
+  void _initFromCache() {
+    final cached = CacheService.getCachedVehicles();
+    if (cached.isNotEmpty) {
+      _vehicles = cached;
+      final savedActive = CacheService.getActiveVehicle();
+      _activeVehicle = _vehicles.firstWhere(
+        (v) => v.name.toLowerCase() == savedActive.toLowerCase(),
+        orElse: () => _vehicles.first,
+      );
+
+      // 1. Immediately restore Home Screen metrics from dedicated summary cache
+      final homeSummary = CacheService.getCachedHomeSummary(_activeVehicle!.id);
+      _summary = TelemetrySummary(
+        totalDistance: homeSummary['totalDistance'] ?? 0.0,
+        avgMileage: homeSummary['avgMileage'] ?? 0.0,
+        totalFuelCost: 0.0,
+        totalLiters: 0.0,
+        bestMileage: 0.0,
+        lowestMileage: 0.0,
+        latestAvgMileage: 0.0,
+        latestDistance: 0.0,
+        latestOdometer: 0,
+        nextSno: 1,
+        lastSno: 1,
+        isCycleOpen: false,
+        byFuelType: {},
+      );
+
+      final cachedLogs = CacheService.getCachedLogs(_activeVehicle!.id);
+      if (cachedLogs.isNotEmpty) {
+        final sorted = List<FuelLog>.from(cachedLogs);
+        sorted.sort((a, b) {
+          final rCmp = b.runId.compareTo(a.runId);
+          if (rCmp != 0) return rCmp;
+          if (a.createdAt != null && b.createdAt != null) {
+            final tCmp = b.createdAt!.compareTo(a.createdAt!);
+            if (tCmp != 0) return tCmp;
+          }
+          if (!b.isPartial && a.isPartial) return 1;
+          if (b.isPartial && !a.isPartial) return -1;
+          return b.date.compareTo(a.date);
+        });
+        _fuelLogs = sorted;
+        _summary = TelemetryEngine.computeSummary(cachedLogs);
+      }
+    }
+    _fuelTypes = CacheService.getCachedFuelTypes();
+  }
+
   List<Vehicle> get vehicles => _vehicles;
   Vehicle? get activeVehicle => _activeVehicle;
   String get activeVehicleName => _activeVehicle?.name ?? 'My Vehicle';
@@ -25,13 +78,23 @@ class GarageProvider extends ChangeNotifier {
   List<String> get fuelTypes => _fuelTypes;
 
   Future<void> loadGarage() async {
-    _isLoading = true;
-    notifyListeners();
+    // Only show loading indicator if we don't already have cached vehicles
+    if (_vehicles.isEmpty) {
+      _isLoading = true;
+      notifyListeners();
+    }
 
     try {
-      _vehicles = await SupabaseService.getVehicles();
+      final cloudVehicles = await SupabaseService.getVehicles();
 
-      if (_vehicles.isEmpty) {
+      if (cloudVehicles.isNotEmpty) {
+        _vehicles = cloudVehicles;
+        final savedActiveName = CacheService.getActiveVehicle();
+        _activeVehicle = _vehicles.firstWhere(
+          (v) => v.name.toLowerCase() == savedActiveName.toLowerCase(),
+          orElse: () => _vehicles.first,
+        );
+      } else if (_vehicles.isEmpty) {
         final def = Vehicle(
           id: 'local_primary',
           userId: SupabaseService.userId,
@@ -40,14 +103,9 @@ class GarageProvider extends ChangeNotifier {
           colorKey: 'red',
         );
         _vehicles = [def];
+        _activeVehicle = def;
         await CacheService.saveCachedVehicles(_vehicles);
       }
-
-      final savedActiveName = CacheService.getActiveVehicle();
-      _activeVehicle = _vehicles.firstWhere(
-        (v) => v.name.toLowerCase() == savedActiveName.toLowerCase(),
-        orElse: () => _vehicles.first,
-      );
 
       await _loadLogsForActiveVehicle();
     } catch (_) {
@@ -60,7 +118,31 @@ class GarageProvider extends ChangeNotifier {
   Future<void> switchVehicle(Vehicle v) async {
     _activeVehicle = v;
     await CacheService.setActiveVehicle(v.name);
+
+    // Instant 0ms switch using cached logs
+    final cachedLogs = CacheService.getCachedLogs(v.id);
+    if (cachedLogs.isNotEmpty) {
+      final sorted = List<FuelLog>.from(cachedLogs);
+      sorted.sort((a, b) {
+        final rCmp = b.runId.compareTo(a.runId);
+        if (rCmp != 0) return rCmp;
+        if (a.createdAt != null && b.createdAt != null) {
+          final tCmp = b.createdAt!.compareTo(a.createdAt!);
+          if (tCmp != 0) return tCmp;
+        }
+        if (!b.isPartial && a.isPartial) return 1;
+        if (b.isPartial && !a.isPartial) return -1;
+        return b.date.compareTo(a.date);
+      });
+      _fuelLogs = sorted;
+      _summary = TelemetryEngine.computeSummary(cachedLogs);
+    } else {
+      _fuelLogs = [];
+      _summary = TelemetrySummary.empty();
+    }
     notifyListeners();
+
+    // Revalidate with cloud
     await _loadLogsForActiveVehicle();
   }
 
@@ -78,6 +160,9 @@ class GarageProvider extends ChangeNotifier {
     // Compute forward-linking cycle telemetry (to_odometer, fuel_consumed, distance, mileage)
     final recalculated = TelemetryEngine.recalculateCycles(rawLogs);
     _summary = TelemetryEngine.computeSummary(recalculated);
+
+    // Save home screen summary cache
+    CacheService.saveCachedHomeSummary(vehicleId, _summary.avgMileage, _summary.totalDistance);
 
     // Asynchronously sync to_odometer and recalculated fields back to Supabase DB
     SupabaseService.syncRecalculatedTelemetry(vehicleId, rawLogs, recalculated);

@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
-- **Current Version**: `Version - 2.11.0 (Build 15)`
+- **Current Version**: `Version - 2.12.0 (Build 16)`
 - **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
 - **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
@@ -257,3 +257,19 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
       - Odometer column now renders `from_odometer → to_odometer` (e.g. `1929 → 2229 km`) for closed cycles, and `1929 km` for open cycles.
       - Added `fuel_consumed` chip (e.g. `8.50 L used`) and `Active Run (Fuel currently in tank)` indicator on the latest fill.
       - Exported CSV includes both `from_odometer` and `to_odometer`.
+
+### Completed in Version 2.12.0 (Build 16):
+
+28. **Instant Cold-Start Cache, Single Default Fuel ("Standard petrol"), & Calculations UI Matching Old App**:
+    - [x] **0ms Instant Cache-First Startup** (`GarageProvider`):
+      - Synchronously initializes `_vehicles`, `_activeVehicle`, `_fuelLogs`, and `_summary` directly from `CacheService` on constructor initialization before the first frame is painted.
+      - Completely eliminates the cold-start glitch where the app previously flashed "My Vehicle" and `-- km/l` for 1-2 seconds on startup.
+      - Instant 0ms vehicle switching with background revalidation.
+      - Safeguarded `SupabaseService.getVehicles()` to never auto-provision "My Vehicle" when local cached vehicles exist.
+    - [x] **Standard Petrol & Single Default Fuel** (`CacheService`, `UploadView`):
+      - Changed "Standard / Unleaded" to "Standard petrol" to clearly inform users it is petrol.
+      - New users start with strictly ONE default fuel type: `['Standard petrol']` (removed multiple initial fuel types).
+      - Automatically migrates existing caches containing "Standard / Unleaded" to "Standard petrol".
+    - [x] **Calculations Page — Old App Styled Fuel Type Cards** (`CalculationsView`):
+      - Each fuel type card box now features an accent border (`width: 1.5`) and indicator dot dynamically matching the user-defined fuel color (retrieved via `CacheService.getFuelColorHex(ftName)`).
+      - Replaced hardcoded grey borders and red dots with user-defined theme colors, restoring the old app's visual style.

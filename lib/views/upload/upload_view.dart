@@ -24,7 +24,7 @@ class _UploadViewState extends State<UploadView> {
   final _odoController = TextEditingController();
   final _densityController = TextEditingController();
 
-  String _selectedFuelType = 'XP95';
+  String _selectedFuelType = 'Standard petrol';
   String _fillFlag = 'F'; // 'F' for Full, 'P' for Partial
   bool _isUploading = false;
 
@@ -287,7 +287,9 @@ class _UploadViewState extends State<UploadView> {
 
                       // Fuel Type Dropdown
                       DropdownButtonFormField<String>(
-                        value: garage.fuelTypes.contains(_selectedFuelType) ? _selectedFuelType : null,
+                        value: garage.fuelTypes.contains(_selectedFuelType)
+                            ? _selectedFuelType
+                            : (garage.fuelTypes.isNotEmpty ? garage.fuelTypes.first : null),
                         decoration: const InputDecoration(
                           labelText: 'Fuel Type *',
                           prefixIcon: Icon(Icons.ev_station, size: 20),

@@ -9,6 +9,7 @@ class CacheService {
   static const String _keyVehicleColors = 'vehicle_colors';
   static const String _keyCachedVehicles = 'cached_vehicles';
   static const String _keyPrefixLogs = 'cached_logs_';
+  static const String _keyHomeSummary = 'cached_home_summary_';
   static const String _keyFuelTypes = 'cached_fuel_types';
   static const String _keyFuelColors = 'cached_fuel_colors';
 
@@ -134,12 +135,49 @@ class CacheService {
     } catch (_) {}
   }
 
+  // ── Cached Home Screen Summary ──
+
+  static Map<String, double> getCachedHomeSummary(String vehicleId) {
+    if (vehicleId.isEmpty) return {'avgMileage': 0.0, 'totalDistance': 0.0};
+    final raw = _prefs?.getString('$_keyHomeSummary$vehicleId');
+    if (raw == null) return {'avgMileage': 0.0, 'totalDistance': 0.0};
+    try {
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      return {
+        'avgMileage': (map['avgMileage'] as num?)?.toDouble() ?? 0.0,
+        'totalDistance': (map['totalDistance'] as num?)?.toDouble() ?? 0.0,
+      };
+    } catch (_) {
+      return {'avgMileage': 0.0, 'totalDistance': 0.0};
+    }
+  }
+
+  static Future<void> saveCachedHomeSummary(String vehicleId, double avgMileage, double totalDistance) async {
+    if (vehicleId.isEmpty) return;
+    try {
+      await _prefs?.setString('$_keyHomeSummary$vehicleId', jsonEncode({
+        'avgMileage': avgMileage,
+        'totalDistance': totalDistance,
+      }));
+    } catch (_) {}
+  }
+
   // ── Cached Fuel Types ──
 
   static List<String> getCachedFuelTypes() {
     final list = _prefs?.getStringList(_keyFuelTypes);
-    if (list != null && list.isNotEmpty) return list;
-    return ['XP95', 'XP100', 'Standard / Unleaded', 'Power 100', 'Diesel'];
+    if (list != null && list.isNotEmpty) {
+      // Migrate old "Standard / Unleaded" to "Standard petrol"
+      final migrated = list.map((t) {
+        if (t.toLowerCase().contains('unleaded') || t == 'Standard / Unleaded') {
+          return 'Standard petrol';
+        }
+        return t;
+      }).toSet().toList();
+      return migrated;
+    }
+    // New user default: strictly ONE type "Standard petrol"
+    return ['Standard petrol'];
   }
 
   static Future<void> saveCachedFuelTypes(List<String> types) async {
@@ -165,7 +203,7 @@ class CacheService {
     if (clean.contains('xp100')) return '#E91E63';
     if (clean.contains('diesel')) return '#4CAF50';
     if (clean.contains('power')) return '#2196F3';
-    if (clean.contains('unleaded') || clean.contains('standard')) return '#FF5252';
+    if (clean.contains('unleaded') || clean.contains('standard') || clean.contains('petrol')) return '#FF5252';
 
     // Hash-based deterministic fallback from palette
     final hash = clean.codeUnits.fold(0, (acc, c) => acc + c);

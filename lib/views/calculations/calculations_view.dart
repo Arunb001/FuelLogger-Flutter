@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/garage_provider.dart';
+import '../../services/cache_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/metric_tile.dart';
 
@@ -119,12 +120,15 @@ class CalculationsView extends StatelessWidget {
                   final fBest = f.bestMileage > 0 ? '${f.bestMileage} km/l' : '-- km/l';
                   final fLow = f.lowestMileage > 0 ? '${f.lowestMileage} km/l' : '-- km/l';
 
+                  final fuelHex = CacheService.getFuelColorHex(ftName);
+                  final fuelColor = AppTheme.hexToColor(fuelHex);
+
                   return Container(
                     margin: const EdgeInsets.only(bottom: 14),
                     decoration: BoxDecoration(
                       color: AppTheme.cardBg,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppTheme.borderColor),
+                      border: Border.all(color: fuelColor, width: 1.5),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
@@ -134,9 +138,9 @@ class CalculationsView extends StatelessWidget {
                           Row(
                             children: [
                               Container(
-                                width: 10,
-                                height: 10,
-                                decoration: const BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle),
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(color: fuelColor, shape: BoxShape.circle),
                               ),
                               const SizedBox(width: 8),
                               Text(ftName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
