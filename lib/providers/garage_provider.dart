@@ -184,6 +184,7 @@ class GarageProvider extends ChangeNotifier {
       _summary = TelemetrySummary.empty();
       CacheService.saveCachedHomeSummary(vehicleId, 0.0, 0.0);
       CacheService.saveCachedLogs(vehicleId, []);
+      await syncFuelTypesWithCloudAndLogs([]);
       notifyListeners();
       return;
     }
@@ -191,6 +192,9 @@ class GarageProvider extends ChangeNotifier {
     // Compute forward-linking cycle telemetry (to_odometer, fuel_consumed, distance, mileage)
     final recalculated = TelemetryEngine.recalculateCycles(rawLogs);
     _summary = TelemetryEngine.computeSummary(recalculated);
+
+    // Synchronize user fuel types from cloud DB and actual logs
+    await syncFuelTypesWithCloudAndLogs(rawLogs);
 
     // Save home screen summary cache
     CacheService.saveCachedHomeSummary(vehicleId, _summary.avgMileage, _summary.totalDistance);
@@ -387,11 +391,68 @@ class GarageProvider extends ChangeNotifier {
     return CsvService.exportLogsToCsv(_fuelLogs);
   }
 
+  /// Synchronizes active fuel types and user-defined colors between Supabase DB, local cache, and vehicle logs.
+  Future<void> syncFuelTypesWithCloudAndLogs(List<FuelLog> logs) async {
+    final uid = SupabaseService.userId;
+
+    // 1. Fetch from cloud database (Supabase fuel_types table)
+    final cloudTypes = await SupabaseService.getCloudFuelTypes();
+
+    final List<String> result = [];
+    if (cloudTypes.isNotEmpty) {
+      for (final item in cloudTypes) {
+        final name = item['name']!;
+        final color = item['color']!;
+        if (!result.contains(name)) {
+          result.add(name);
+        }
+        await CacheService.setFuelColorHex(name, color, uid);
+      }
+    } else {
+      // Fallback to local user-scoped cache
+      final cached = CacheService.getCachedFuelTypes(uid);
+      for (final c in cached) {
+        if (!result.contains(c)) {
+          result.add(c);
+        }
+      }
+    }
+
+    // 2. Self-heal from user's actual fuel logs:
+    // If the user's logs contain fuel types (e.g. 'XP95', 'XP100', 'Standard petrol'),
+    // EVERY fuel type in their logs must be available in their active fuel types list!
+    final logFuelTypes = logs.map((l) => l.fuelType.trim()).where((t) => t.isNotEmpty).toSet();
+    for (final lt in logFuelTypes) {
+      if (!result.contains(lt)) {
+        result.add(lt);
+        // Persist to cloud database and local cache
+        final cHex = CacheService.getFuelColorHex(lt, uid);
+        SupabaseService.addCloudFuelType(lt, cHex);
+        await CacheService.setFuelColorHex(lt, cHex, uid);
+      }
+    }
+
+    // 3. For a brand new user (0 cloud entries, 0 logs, empty list):
+    // Strictly ONE default fuel: "Standard petrol"
+    if (result.isEmpty) {
+      result.add('Standard petrol');
+      SupabaseService.addCloudFuelType('Standard petrol', '#FF5252');
+      await CacheService.setFuelColorHex('Standard petrol', '#FF5252', uid);
+    }
+
+    _fuelTypes = result;
+    await CacheService.saveCachedFuelTypes(_fuelTypes, uid);
+    notifyListeners();
+  }
+
   void addCustomFuelType(String name) {
     final clean = name.trim();
     if (clean.isNotEmpty && !_fuelTypes.contains(clean)) {
       _fuelTypes.insert(0, clean);
-      CacheService.saveCachedFuelTypes(_fuelTypes);
+      final uid = SupabaseService.userId;
+      final colorHex = CacheService.getFuelColorHex(clean, uid);
+      CacheService.saveCachedFuelTypes(_fuelTypes, uid);
+      SupabaseService.addCloudFuelType(clean, colorHex);
       notifyListeners();
     }
   }
@@ -399,13 +460,17 @@ class GarageProvider extends ChangeNotifier {
   void removeCustomFuelType(String name) {
     if (_fuelTypes.length > 1) {
       _fuelTypes.remove(name);
-      CacheService.saveCachedFuelTypes(_fuelTypes);
+      final uid = SupabaseService.userId;
+      CacheService.saveCachedFuelTypes(_fuelTypes, uid);
+      SupabaseService.deleteCloudFuelType(name);
       notifyListeners();
     }
   }
 
   Future<void> updateFuelTypeColor(String name, String hexColor) async {
-    await CacheService.setFuelColorHex(name, hexColor);
+    final uid = SupabaseService.userId;
+    await CacheService.setFuelColorHex(name, hexColor, uid);
+    await SupabaseService.updateCloudFuelTypeColor(name, hexColor);
     notifyListeners();
   }
 }

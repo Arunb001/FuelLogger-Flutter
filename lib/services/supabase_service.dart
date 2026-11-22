@@ -429,4 +429,108 @@ class SupabaseService {
       } catch (_) {}
     }
   }
+
+  // ── Fuel Types Cloud CRUD ──
+
+  /// Fetches the user's configured fuel types and colors from Supabase cloud database
+  static Future<List<Map<String, String>>> getCloudFuelTypes() async {
+    if (!isAuthenticated || userId.isEmpty) return [];
+    try {
+      final res = await client
+          .from('fuel_types')
+          .select()
+          .eq('user_id', userId)
+          .order('created_at', ascending: true);
+
+      final List<Map<String, String>> result = [];
+      for (final item in res as List) {
+        final name = item['name']?.toString().trim() ?? '';
+        final color = item['color']?.toString().trim() ?? '#FF5252';
+        if (name.isNotEmpty) {
+          result.add({'name': name, 'color': color});
+        }
+      }
+      return result;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Adds a fuel type for the current user in Supabase cloud database
+  static Future<bool> addCloudFuelType(String name, String color) async {
+    final clean = name.trim();
+    if (clean.isEmpty || !isAuthenticated || userId.isEmpty) return false;
+    try {
+      final existing = await client
+          .from('fuel_types')
+          .select('id')
+          .eq('user_id', userId)
+          .ilike('name', clean);
+
+      if ((existing as List).isNotEmpty) {
+        await client
+            .from('fuel_types')
+            .update({'color': color})
+            .eq('user_id', userId)
+            .ilike('name', clean);
+        return true;
+      }
+
+      await client.from('fuel_types').insert({
+        'user_id': userId,
+        'name': clean,
+        'color': color,
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Updates the color of a fuel type in Supabase cloud database
+  static Future<bool> updateCloudFuelTypeColor(String name, String hexColor) async {
+    final clean = name.trim();
+    if (clean.isEmpty || !isAuthenticated || userId.isEmpty) return false;
+    try {
+      final existing = await client
+          .from('fuel_types')
+          .select('id')
+          .eq('user_id', userId)
+          .ilike('name', clean);
+
+      if ((existing as List).isNotEmpty) {
+        await client
+            .from('fuel_types')
+            .update({'color': hexColor})
+            .eq('user_id', userId)
+            .ilike('name', clean);
+        return true;
+      } else {
+        await client.from('fuel_types').insert({
+          'user_id': userId,
+          'name': clean,
+          'color': hexColor,
+        });
+        return true;
+      }
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Deletes a fuel type for the current user in Supabase cloud database
+  static Future<bool> deleteCloudFuelType(String name) async {
+    final clean = name.trim();
+    if (clean.isEmpty || !isAuthenticated || userId.isEmpty) return false;
+    try {
+      await client
+          .from('fuel_types')
+          .delete()
+          .eq('user_id', userId)
+          .ilike('name', clean);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }

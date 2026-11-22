@@ -1,8 +1,8 @@
 /// Centralized Application Version Metadata for Fuel Logger
 /// Maintains Semantic Versioning (SemVer) and Android Build Numbers across the entire project.
 class AppVersion {
-  static const String appVersion = "2.13.0";
-  static const int buildNumber = 17;
+  static const String appVersion = "2.14.0";
+  static const int buildNumber = 18;
   static const String buildEdition = "Release";
 
   /// Standard display string: "Version - 2.3.0 (Build 6)"

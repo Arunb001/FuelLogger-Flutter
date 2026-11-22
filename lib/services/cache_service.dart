@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/vehicle.dart';
 import '../models/fuel_log.dart';
+import 'supabase_service.dart';
 
 class CacheService {
   static const String _keyActiveVehicle = 'active_vehicle';
@@ -12,7 +13,6 @@ class CacheService {
   static const String _keyHomeSummary = 'cached_home_summary_';
   static const String _keyFuelTypes = 'cached_fuel_types';
   static const String _keyFuelColors = 'cached_fuel_colors';
-  static const String _keyFuelTypesMigratedV2 = 'fuel_types_migrated_v2_single';
 
   static const List<String> fuelColorPalette = [
     '#FF9800', // Amber / Orange
@@ -165,24 +165,20 @@ class CacheService {
 
   // ── Cached Fuel Types ──
 
-  static List<String> getCachedFuelTypes() {
-    // One-time migration to strictly single default fuel ("Standard petrol")
-    final migratedFlag = _prefs?.getBool(_keyFuelTypesMigratedV2) ?? false;
-    if (!migratedFlag) {
-      _prefs?.setBool(_keyFuelTypesMigratedV2, true);
-      final existing = _prefs?.getStringList(_keyFuelTypes);
-      // If cached fuel types contain legacy multi-defaults (e.g. XP95 + XP100 + Unleaded), reset to strictly single default
-      if (existing == null ||
-          existing.isEmpty ||
-          (existing.contains('XP95') && existing.contains('XP100') && existing.length >= 3)) {
-        _prefs?.setStringList(_keyFuelTypes, ['Standard petrol']);
-        return ['Standard petrol'];
-      }
-    }
+  static String _fuelTypesKey([String? userId]) {
+    final uid = userId ?? SupabaseService.userId;
+    return uid.isNotEmpty ? '${_keyFuelTypes}_$uid' : _keyFuelTypes;
+  }
 
-    final list = _prefs?.getStringList(_keyFuelTypes);
+  static String _fuelColorsKey([String? userId]) {
+    final uid = userId ?? SupabaseService.userId;
+    return uid.isNotEmpty ? '${_keyFuelColors}_$uid' : _keyFuelColors;
+  }
+
+  static List<String> getCachedFuelTypes([String? userId]) {
+    final key = _fuelTypesKey(userId);
+    final list = _prefs?.getStringList(key) ?? _prefs?.getStringList(_keyFuelTypes);
     if (list != null && list.isNotEmpty) {
-      // Migrate old "Standard / Unleaded" to "Standard petrol"
       final migrated = list.map((t) {
         if (t.toLowerCase().contains('unleaded') || t == 'Standard / Unleaded') {
           return 'Standard petrol';
@@ -195,37 +191,28 @@ class CacheService {
     return ['Standard petrol'];
   }
 
-  static Future<void> saveCachedFuelTypes(List<String> types) async {
+  static Future<void> saveCachedFuelTypes(List<String> types, [String? userId]) async {
+    final key = _fuelTypesKey(userId);
+    await _prefs?.setStringList(key, types);
     await _prefs?.setStringList(_keyFuelTypes, types);
   }
 
-  /// Clears user-specific session cache when signing out or switching accounts.
+  /// Clears active vehicle session cache on sign out
   static Future<void> clearUserCache() async {
     final prefs = _prefs;
     if (prefs == null) return;
     try {
       await prefs.remove(_keyActiveVehicle);
       await prefs.remove(_keyCachedVehicles);
-      await prefs.remove(_keyFuelColors);
-      // Reset fuel types strictly to ['Standard petrol']
-      await prefs.setStringList(_keyFuelTypes, ['Standard petrol']);
-      await prefs.setBool(_keyFuelTypesMigratedV2, true);
-
-      // Clean all vehicle logs and summary metrics
-      final keys = List<String>.from(prefs.getKeys());
-      for (final k in keys) {
-        if (k.startsWith(_keyPrefixLogs) || k.startsWith(_keyHomeSummary)) {
-          await prefs.remove(k);
-        }
-      }
     } catch (_) {}
   }
 
   // ── Cached Fuel Colors ──
 
-  static String getFuelColorHex(String fuelName) {
+  static String getFuelColorHex(String fuelName, [String? userId]) {
     final clean = fuelName.toLowerCase().trim();
-    final raw = _prefs?.getString(_keyFuelColors);
+    final key = _fuelColorsKey(userId);
+    final raw = _prefs?.getString(key) ?? _prefs?.getString(_keyFuelColors);
     if (raw != null) {
       try {
         final map = jsonDecode(raw) as Map<String, dynamic>;
@@ -247,9 +234,10 @@ class CacheService {
     return fuelColorPalette[hash % fuelColorPalette.length];
   }
 
-  static Future<void> setFuelColorHex(String fuelName, String hexColor) async {
+  static Future<void> setFuelColorHex(String fuelName, String hexColor, [String? userId]) async {
     final clean = fuelName.toLowerCase().trim();
-    final raw = _prefs?.getString(_keyFuelColors);
+    final key = _fuelColorsKey(userId);
+    final raw = _prefs?.getString(key);
     Map<String, dynamic> map = {};
     if (raw != null) {
       try {
@@ -257,6 +245,7 @@ class CacheService {
       } catch (_) {}
     }
     map[clean] = hexColor;
+    await _prefs?.setString(key, jsonEncode(map));
     await _prefs?.setString(_keyFuelColors, jsonEncode(map));
   }
 }

@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
-- **Current Version**: `Version - 2.13.0 (Build 17)`
+- **Current Version**: `Version - 2.14.0 (Build 18)`
 - **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
 - **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
@@ -297,3 +297,20 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
     - [x] **Direct Native Email Redirection** (`url_launcher`):
       - Tapping anywhere on the Card or tapping the "Email" button opens the device's native email client (Gmail, Outlook, etc.) with pre-filled `mailto:arunbaalajiabs@gmail.com?subject=Fuel%20Logger%20Support%20%26%20Feedback`.
       - Added the `<queries>` intent filter for `mailto:` to `android/app/src/main/AndroidManifest.xml` to comply with Android 11+ (API 30+) package visibility requirements.
+
+### Completed in Version 2.14.0 (Build 18):
+
+31. **Cloud Fuel Types & Custom Colors Persistence (`fuel_types` table) + Self-Healing Sync**:
+    - [x] **Supabase Cloud Database Persistence** (`SupabaseService`):
+      - Implemented full CRUD for fuel types and custom colors: `getCloudFuelTypes()`, `addCloudFuelType()`, `updateCloudFuelTypeColor()`, and `deleteCloudFuelType()` interacting directly with the Supabase `fuel_types` table scoped by `user_id`.
+      - When any user adds a new fuel type, deletes a fuel type, or picks a custom color, the changes are stored permanently in the cloud database.
+    - [x] **Self-Healing Fuel Types From Logs** (`GarageProvider.syncFuelTypesWithCloudAndLogs`):
+      - When an existing user signs in, the engine checks their cloud `fuel_types` and their actual `fuel_logs`.
+      - Any fuel types already present in their fill-up records (e.g. `XP95`, `XP100`, `Standard petrol`) are automatically populated into their active fuel types list, matching the Calculations breakdown 100%.
+      - Fixes the bug where an existing user saw 3 fuel types in Calculations but only 1 in the Upload dropdown and Settings.
+    - [x] **Strictly Single Default for New Users**:
+      - When a brand new user signs in (0 cloud entries, 0 logs), their garage starts with strictly ONE fuel type: `Standard petrol` (with `#FF5252` accent).
+      - If that user adds another fuel type or customizes a color, it is saved in the database under their `user_id`.
+    - [x] **User-Scoped Local Cache** (`CacheService`):
+      - Scoped cached fuel types and custom colors by `userId` (`cached_fuel_types_<userId>`, `cached_fuel_colors_<userId>`).
+      - Preserves user customizations when signing in and out, preventing cross-account contamination while ensuring 0ms instant offline startup.
