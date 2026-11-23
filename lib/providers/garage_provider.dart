@@ -398,11 +398,28 @@ class GarageProvider extends ChangeNotifier {
     // 1. Fetch from cloud database (Supabase fuel_types table)
     final cloudTypes = await SupabaseService.getCloudFuelTypes();
 
+    // Check if cloud entries are the legacy trigger defaults:
+    // (In earlier Supabase setup, trigger on_auth_user_created automatically inserted XP95, XP100, Unleaded, Power)
+    final legacyTriggerNames = {'xp95', 'xp100', 'unleaded', 'power'};
+    final cloudNamesLower = cloudTypes.map((c) => c['name']!.toLowerCase().trim()).toSet();
+    final bool isLegacyTriggerDefault = logs.isEmpty &&
+        ((cloudNamesLower.length == 4 && cloudNamesLower.containsAll(legacyTriggerNames)) ||
+         (cloudNamesLower.contains('unleaded') && cloudNamesLower.contains('power') && cloudNamesLower.length >= 3));
+
+    if (isLegacyTriggerDefault) {
+      // Clean legacy trigger fuel types out of the cloud DB for this new user
+      for (final item in cloudTypes) {
+        await SupabaseService.deleteCloudFuelType(item['name']!);
+      }
+      cloudTypes.clear();
+    }
+
     final List<String> result = [];
     if (cloudTypes.isNotEmpty) {
       for (final item in cloudTypes) {
-        final name = item['name']!;
+        final rawName = item['name']!;
         final color = item['color']!;
+        final name = (rawName == 'Standard / Unleaded') ? 'Standard petrol' : rawName;
         if (!result.contains(name)) {
           result.add(name);
         }
@@ -412,8 +429,9 @@ class GarageProvider extends ChangeNotifier {
       // Fallback to local user-scoped cache
       final cached = CacheService.getCachedFuelTypes(uid);
       for (final c in cached) {
-        if (!result.contains(c)) {
-          result.add(c);
+        final name = (c == 'Standard / Unleaded') ? 'Standard petrol' : c;
+        if (!result.contains(name)) {
+          result.add(name);
         }
       }
     }
@@ -423,12 +441,12 @@ class GarageProvider extends ChangeNotifier {
     // EVERY fuel type in their logs must be available in their active fuel types list!
     final logFuelTypes = logs.map((l) => l.fuelType.trim()).where((t) => t.isNotEmpty).toSet();
     for (final lt in logFuelTypes) {
-      if (!result.contains(lt)) {
-        result.add(lt);
-        // Persist to cloud database and local cache
-        final cHex = CacheService.getFuelColorHex(lt, uid);
-        SupabaseService.addCloudFuelType(lt, cHex);
-        await CacheService.setFuelColorHex(lt, cHex, uid);
+      final name = (lt == 'Standard / Unleaded') ? 'Standard petrol' : lt;
+      if (!result.contains(name)) {
+        result.add(name);
+        final cHex = CacheService.getFuelColorHex(name, uid);
+        await SupabaseService.addCloudFuelType(name, cHex);
+        await CacheService.setFuelColorHex(name, cHex, uid);
       }
     }
 
@@ -436,7 +454,7 @@ class GarageProvider extends ChangeNotifier {
     // Strictly ONE default fuel: "Standard petrol"
     if (result.isEmpty) {
       result.add('Standard petrol');
-      SupabaseService.addCloudFuelType('Standard petrol', '#FF5252');
+      await SupabaseService.addCloudFuelType('Standard petrol', '#FF5252');
       await CacheService.setFuelColorHex('Standard petrol', '#FF5252', uid);
     }
 

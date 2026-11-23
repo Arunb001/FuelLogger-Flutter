@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
-- **Current Version**: `Version - 2.14.0 (Build 18)`
+- **Current Version**: `Version - 2.15.0 (Build 19)`
 - **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
 - **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
@@ -314,3 +314,17 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
     - [x] **User-Scoped Local Cache** (`CacheService`):
       - Scoped cached fuel types and custom colors by `userId` (`cached_fuel_types_<userId>`, `cached_fuel_colors_<userId>`).
       - Preserves user customizations when signing in and out, preventing cross-account contamination while ensuring 0ms instant offline startup.
+
+### Completed in Version 2.15.0 (Build 19):
+
+32. **Backend Database Trigger Cleanup & Strict Single "Standard petrol" Default**:
+    - [x] **Legacy Database Trigger Cleanup** (`GarageProvider.syncFuelTypesWithCloudAndLogs`):
+      - Discovered that Supabase backend trigger `on_auth_user_created` calls `handle_new_user()`, which automatically populated new accounts with 4 legacy fuel types (`XP95`, `XP100`, `Unleaded`, `Power`).
+      - Added automatic legacy trigger detection: when a user has zero fill-up logs and their cloud types match the 4 legacy trigger defaults, the client silently purges those 4 rows from the Supabase `fuel_types` table.
+      - Resets their garage strictly to ONE default: `Standard petrol` (with `#FF5252` accent), matching user requirements.
+    - [x] **Naming Standardization**:
+      - Automatically renames any lingering `Standard / Unleaded` references from cloud database or cache into `Standard petrol`.
+    - [x] **Supabase Trigger Schema Update** (`supabase_schema.sql`):
+      - Updated `handle_new_user()` in SQL schema to insert only `('Standard petrol', '#FF5252')` for newly registered users.
+    - [x] **Total Local Cache Isolation** (`CacheService`):
+      - Removed global fallback keys (`cached_fuel_types`, `cached_fuel_colors`) when a user ID is available, ensuring zero cache crosstalk across different accounts tested on the same physical device.

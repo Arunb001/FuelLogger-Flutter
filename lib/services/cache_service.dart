@@ -177,7 +177,7 @@ class CacheService {
 
   static List<String> getCachedFuelTypes([String? userId]) {
     final key = _fuelTypesKey(userId);
-    final list = _prefs?.getStringList(key) ?? _prefs?.getStringList(_keyFuelTypes);
+    final list = _prefs?.getStringList(key);
     if (list != null && list.isNotEmpty) {
       final migrated = list.map((t) {
         if (t.toLowerCase().contains('unleaded') || t == 'Standard / Unleaded') {
@@ -194,7 +194,6 @@ class CacheService {
   static Future<void> saveCachedFuelTypes(List<String> types, [String? userId]) async {
     final key = _fuelTypesKey(userId);
     await _prefs?.setStringList(key, types);
-    await _prefs?.setStringList(_keyFuelTypes, types);
   }
 
   /// Clears active vehicle session cache on sign out
@@ -212,7 +211,7 @@ class CacheService {
   static String getFuelColorHex(String fuelName, [String? userId]) {
     final clean = fuelName.toLowerCase().trim();
     final key = _fuelColorsKey(userId);
-    final raw = _prefs?.getString(key) ?? _prefs?.getString(_keyFuelColors);
+    final raw = _prefs?.getString(key);
     if (raw != null) {
       try {
         final map = jsonDecode(raw) as Map<String, dynamic>;
@@ -246,6 +245,5 @@ class CacheService {
     }
     map[clean] = hexColor;
     await _prefs?.setString(key, jsonEncode(map));
-    await _prefs?.setString(_keyFuelColors, jsonEncode(map));
   }
 }
