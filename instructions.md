@@ -340,4 +340,8 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
       - Configured Gradle signing in `android/app/build.gradle.kts` with `key.properties` protection in `.gitignore`.
     - [x] **Production App Bundle (.aab)**:
       - Compiled signed Android App Bundle ready for Google Play Store upload.
+    - [x] **Verified One-Tap Native Google Sign-In with Release Keystore**:
+      - Registered production release keystore SHA-1 (`18:FF:D5:C5:1F:E6:4A:B7:30:D6:3A:0B:75:0C:D7:51:D9:37:C8:C6`) under Android OAuth 2.0 Client IDs in Google Cloud Console.
+      - Confirmed 1-tap in-app native Google authentication without browser popups or passkey verification.
+
 
