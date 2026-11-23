@@ -332,9 +332,7 @@ class LogsView extends StatelessWidget {
                                   const Text('Odometer', style: TextStyle(color: Colors.grey, fontSize: 11)),
                                   const SizedBox(height: 2),
                                   Text(
-                                    log.toOdometer > 0
-                                        ? '${log.fromOdometer} → ${log.toOdometer}'
-                                        : '${log.fromOdometer} km',
+                                    '${log.fromOdometer} km',
                                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
                                   ),
                                 ],
@@ -363,74 +361,12 @@ class LogsView extends StatelessWidget {
                               ),
                             ],
                           ),
-
-                          // Row 3: Derived Telemetry Chips (Mileage, Distance, Fuel Consumed, Cost/km)
-                          if (!log.isPartial && log.calculatedMileage > 0) ...[
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 6,
-                              children: [
-                                _buildTelemetryChip(
-                                  label: '${log.calculatedMileage.toStringAsFixed(2)} km/l',
-                                  color: AppTheme.mileageGreen,
-                                  icon: Icons.speed,
-                                ),
-                                _buildTelemetryChip(
-                                  label: '+${log.distanceTraveled.toInt()} km',
-                                  color: AppTheme.distanceBlue,
-                                  icon: Icons.trending_up,
-                                ),
-                                _buildTelemetryChip(
-                                  label: '${log.fuelConsumed.toStringAsFixed(2)} L used',
-                                  color: Colors.cyanAccent,
-                                  icon: Icons.water_drop_outlined,
-                                ),
-                                _buildTelemetryChip(
-                                  label: '₹${log.costPerKm.toStringAsFixed(2)}/km',
-                                  color: AppTheme.costAmber,
-                                  icon: Icons.currency_rupee,
-                                ),
-                              ],
-                            ),
-                          ] else if (!log.isPartial && log.toOdometer == 0) ...[
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 8,
-                              children: [
-                                _buildTelemetryChip(
-                                  label: 'Active Run (Fuel currently in tank)',
-                                  color: AppTheme.distanceBlue,
-                                  icon: Icons.hourglass_top,
-                                ),
-                              ],
-                            ),
-                          ],
                         ],
                       ),
                     ),
                   );
                 },
               ),
-      ),
-    );
-  }
-
-  Widget _buildTelemetryChip({required String label, required Color color, required IconData icon}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.5), width: 0.8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
-        ],
       ),
     );
   }

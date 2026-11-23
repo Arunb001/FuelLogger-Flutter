@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
-- **Current Version**: `Version - 2.16.0 (Build 20)`
+- **Current Version**: `Version - 2.17.0 (Build 21)`
 - **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
 - **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
@@ -343,5 +343,18 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
     - [x] **Verified One-Tap Native Google Sign-In with Release Keystore**:
       - Registered production release keystore SHA-1 (`18:FF:D5:C5:1F:E6:4A:B7:30:D6:3A:0B:75:0C:D7:51:D9:37:C8:C6`) under Android OAuth 2.0 Client IDs in Google Cloud Console.
       - Confirmed 1-tap in-app native Google authentication without browser popups or passkey verification.
+
+### Completed in Version 2.17.0 (Build 21):
+
+34. **Strategic Log Privacy Disguise & Full Production AOT Code Obfuscation**:
+    - [x] **Complete Log Privacy & Disguise** (`LogsView`):
+      - Removed all derived calculation chips (Mileage, distance run, fuel consumed, cost/km) from each log card in Manage Logs.
+      - Log cards strictly display only the user-entered raw fill-up values: Run #, Date, Fuel Cost (₹), Volume (L), User Odometer (km), and Fuel Type.
+      - Prevents testers, competitors, software engineers, or BAs from reverse-engineering per-run intermediate calculations.
+      - All comprehensive analytics remain aggregated and viewable in the "View Calculations" dashboard.
+    - [x] **Production AOT Binary Obfuscation**:
+      - Compiled release packages with `--obfuscate --split-debug-info=symbols/`.
+      - Scrambles all Dart class names, functions, and internal calculation symbols into randomized identifiers inside the ARM64 `libapp.so` binary, protecting intellectual property from decompilation.
+
 
 
