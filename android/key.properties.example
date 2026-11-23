@@ -1,0 +1,7 @@
+# Example key.properties file for Fuel Logger Release Signing
+# Place this file in android/key.properties (DO NOT COMMIT TO GIT)
+
+keyAlias=upload
+keyPassword=YOUR_KEY_PASSWORD
+storePassword=YOUR_STORE_PASSWORD
+storeFile=upload-keystore.jks

@@ -24,3 +24,9 @@ local.properties
 # Local env secrets (if any)
 .env
 *.local.dart
+
+# Keystore & Signing secrets
+*.keystore
+*.jks
+key.properties
+
