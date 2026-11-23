@@ -63,7 +63,7 @@ android {
             if (keyAliasVal != null && storeFileVal != null) {
                 keyAlias = keyAliasVal
                 keyPassword = keyPasswordVal
-                storeFile = file(storeFileVal)
+                storeFile = rootProject.file(storeFileVal)
                 storePassword = storePasswordVal
             }
         }
