@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
-- **Current Version**: `Version - 2.15.0 (Build 19)`
+- **Current Version**: `Version - 2.16.0 (Build 20)`
 - **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
 - **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
@@ -328,3 +328,16 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
       - Updated `handle_new_user()` in SQL schema to insert only `('Standard petrol', '#FF5252')` for newly registered users.
     - [x] **Total Local Cache Isolation** (`CacheService`):
       - Removed global fallback keys (`cached_fuel_types`, `cached_fuel_colors`) when a user ID is available, ensuring zero cache crosstalk across different accounts tested on the same physical device.
+
+### Completed in Version 2.16.0 (Build 20):
+
+33. **Support Email Subject URI Encoding & Google Play Production Release Assets**:
+    - [x] **Fixed Mailto Subject Plus Sign Bug** (`SettingsView._launchSupportEmail`):
+      - Resolved issue where Dart's default `Uri(queryParameters: ...)` encoded spaces as `+`, causing email apps (like Gmail) to display `Fuel+Logger+Support+&+Feedback`.
+      - Migrated to RFC 6068 standard URI percent-encoding (`%20`), formatting the subject cleanly as `Fuel Logger: Support & Feedback`.
+    - [x] **Google Play Release Signing & Keystore Automation**:
+      - Generated production upload keystore (`upload-keystore.jks`) using RSA 2048-bit key valid for 10,000 days.
+      - Configured Gradle signing in `android/app/build.gradle.kts` with `key.properties` protection in `.gitignore`.
+    - [x] **Production App Bundle (.aab)**:
+      - Compiled signed Android App Bundle ready for Google Play Store upload.
+

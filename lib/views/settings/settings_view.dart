@@ -220,13 +220,8 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   Future<void> _launchSupportEmail() async {
-    final Uri emailLaunchUri = Uri(
-      scheme: 'mailto',
-      path: 'arunbaalajiabs@gmail.com',
-      queryParameters: {
-        'subject': 'Fuel Logger Support & Feedback',
-      },
-    );
+    final String subject = Uri.encodeComponent('Fuel Logger: Support & Feedback').replaceAll('+', '%20');
+    final Uri emailLaunchUri = Uri.parse('mailto:arunbaalajiabs@gmail.com?subject=$subject');
     try {
       if (await canLaunchUrl(emailLaunchUri)) {
         await launchUrl(emailLaunchUri, mode: LaunchMode.externalApplication);
