@@ -2,6 +2,47 @@ import '../models/fuel_log.dart';
 import '../models/telemetry_summary.dart';
 
 class TelemetryEngine {
+  /// Sorts fuel logs in ascending vehicle run sequence:
+  /// runId ASC -> fromOdometer ASC -> date ASC -> Partial ('P') before Full ('F') -> createdAt ASC.
+  static void sortAscending(List<FuelLog> logs) {
+    logs.sort((a, b) {
+      if (a.runId > 0 && b.runId > 0 && a.runId != b.runId) {
+        return a.runId.compareTo(b.runId);
+      }
+      if (a.fromOdometer > 0 && b.fromOdometer > 0 && a.fromOdometer != b.fromOdometer) {
+        return a.fromOdometer.compareTo(b.fromOdometer);
+      }
+      final dCmp = a.date.compareTo(b.date);
+      if (dCmp != 0) return dCmp;
+      if (a.isPartial && !b.isPartial) return -1;
+      if (!a.isPartial && b.isPartial) return 1;
+      if (a.createdAt != null && b.createdAt != null) {
+        return a.createdAt!.compareTo(b.createdAt!);
+      }
+      return 0;
+    });
+  }
+
+  /// Sorts fuel logs in reverse-chronological display order (latest run first).
+  static void sortDescending(List<FuelLog> logs) {
+    logs.sort((a, b) {
+      if (a.runId > 0 && b.runId > 0 && a.runId != b.runId) {
+        return b.runId.compareTo(a.runId);
+      }
+      if (a.fromOdometer > 0 && b.fromOdometer > 0 && a.fromOdometer != b.fromOdometer) {
+        return b.fromOdometer.compareTo(a.fromOdometer);
+      }
+      if (!b.isPartial && a.isPartial) return 1;
+      if (b.isPartial && !a.isPartial) return -1;
+      final dCmp = b.date.compareTo(a.date);
+      if (dCmp != 0) return dCmp;
+      if (a.createdAt != null && b.createdAt != null) {
+        return b.createdAt!.compareTo(a.createdAt!);
+      }
+      return 0;
+    });
+  }
+
   /// Recalculates full cycle telemetry for all logs in chronological order.
   /// Follows the forward-linking engine:
   /// - Row i's `to_odometer` is populated from the next closing full fill's `from_odometer`.
@@ -15,20 +56,8 @@ class TelemetryEngine {
   static List<FuelLog> recalculateCycles(List<FuelLog> logs) {
     if (logs.isEmpty) return [];
 
-    // Sort ascending chronologically (date ASC, runId ASC, P before F, createdAt ASC)
     final sorted = List<FuelLog>.from(logs);
-    sorted.sort((a, b) {
-      final dCmp = a.date.compareTo(b.date);
-      if (dCmp != 0) return dCmp;
-      final rCmp = a.runId.compareTo(b.runId);
-      if (rCmp != 0) return rCmp;
-      if (a.isPartial && !b.isPartial) return -1;
-      if (!a.isPartial && b.isPartial) return 1;
-      if (a.createdAt != null && b.createdAt != null) {
-        return a.createdAt!.compareTo(b.createdAt!);
-      }
-      return 0;
-    });
+    sortAscending(sorted);
 
     final List<FuelLog> recalculated = [];
 

@@ -64,17 +64,7 @@ class GarageProvider extends ChangeNotifier {
       final cachedLogs = CacheService.getCachedLogs(_activeVehicle!.id);
       if (cachedLogs.isNotEmpty) {
         final sorted = List<FuelLog>.from(cachedLogs);
-        sorted.sort((a, b) {
-          final rCmp = b.runId.compareTo(a.runId);
-          if (rCmp != 0) return rCmp;
-          if (a.createdAt != null && b.createdAt != null) {
-            final tCmp = b.createdAt!.compareTo(a.createdAt!);
-            if (tCmp != 0) return tCmp;
-          }
-          if (!b.isPartial && a.isPartial) return 1;
-          if (b.isPartial && !a.isPartial) return -1;
-          return b.date.compareTo(a.date);
-        });
+        TelemetryEngine.sortDescending(sorted);
         _fuelLogs = sorted;
         _summary = TelemetryEngine.computeSummary(cachedLogs);
       }
@@ -145,17 +135,7 @@ class GarageProvider extends ChangeNotifier {
     final cachedLogs = CacheService.getCachedLogs(v.id);
     if (cachedLogs.isNotEmpty) {
       final sorted = List<FuelLog>.from(cachedLogs);
-      sorted.sort((a, b) {
-        final rCmp = b.runId.compareTo(a.runId);
-        if (rCmp != 0) return rCmp;
-        if (a.createdAt != null && b.createdAt != null) {
-          final tCmp = b.createdAt!.compareTo(a.createdAt!);
-          if (tCmp != 0) return tCmp;
-        }
-        if (!b.isPartial && a.isPartial) return 1;
-        if (b.isPartial && !a.isPartial) return -1;
-        return b.date.compareTo(a.date);
-      });
+      TelemetryEngine.sortDescending(sorted);
       _fuelLogs = sorted;
       _summary = TelemetryEngine.computeSummary(cachedLogs);
     } else {
@@ -203,25 +183,7 @@ class GarageProvider extends ChangeNotifier {
     SupabaseService.syncRecalculatedTelemetry(vehicleId, rawLogs, recalculated);
 
     // Sort reverse-chronological (latest run first)
-    recalculated.sort((a, b) {
-      // 1. Primary: latest runId first (descending)
-      final rCmp = b.runId.compareTo(a.runId);
-      if (rCmp != 0) return rCmp;
-
-      // 2. Secondary: latest createdAt timestamp first (descending)
-      if (a.createdAt != null && b.createdAt != null) {
-        final tCmp = b.createdAt!.compareTo(a.createdAt!);
-        if (tCmp != 0) return tCmp;
-      }
-
-      // 3. Tertiary: Full tank fill ('F') closes the cycle, so in reverse-chronology,
-      // the Full fill must appear on TOP of earlier partial fill(s) ('P')!
-      if (!b.isPartial && a.isPartial) return 1;
-      if (b.isPartial && !a.isPartial) return -1;
-
-      // 4. Quaternary: latest date first (descending)
-      return b.date.compareTo(a.date);
-    });
+    TelemetryEngine.sortDescending(recalculated);
     _fuelLogs = recalculated;
     notifyListeners();
   }

@@ -237,8 +237,8 @@ class SupabaseService {
             .from('fuel_logs')
             .select()
             .eq('vehicle_id', vehicleId)
-            .order('date', ascending: false)
-            .order('run_id', ascending: false);
+            .order('run_id', ascending: false)
+            .order('from_odometer', ascending: false);
 
         final logs = (res as List).map((x) => FuelLog.fromJson(x)).toList();
         await CacheService.saveCachedLogs(vehicleId, logs);

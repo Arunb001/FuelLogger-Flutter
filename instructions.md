@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
-- **Current Version**: `Version - 2.17.0 (Build 21)`
+- **Current Version**: `Version - 2.17.2 (Build 23)`
 - **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
 - **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
@@ -355,6 +355,31 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
     - [x] **Production AOT Binary Obfuscation**:
       - Compiled release packages with `--obfuscate --split-debug-info=symbols/`.
       - Scrambles all Dart class names, functions, and internal calculation symbols into randomized identifiers inside the ARM64 `libapp.so` binary, protecting intellectual property from decompilation.
+
+### Completed in Version 2.17.1 (Build 22):
+
+35. **Decimal Odometer Precision & R8 DEX Optimization**:
+    - [x] **Float/Decimal Odometer Support** (`FuelLog`, `TelemetrySummary`, `TelemetryEngine`, `CsvService`, `GarageProvider`, `UploadView`, `LogsView`):
+      - Upgraded `fromOdometer`, `toOdometer`, and `latestOdometer` from `int` to `double` so vehicles recording fractional trip/odometer readings import and calculate accurately.
+    - [x] **R8 Code Shrinking & Resource Minification** (`android/app/build.gradle.kts`, `proguard-rules.pro`):
+      - Enabled `isMinifyEnabled = true` and `isShrinkResources = true` for release builds alongside Play Core / Google Sign-In keep rules to reduce bundle download size and improve DEX optimization.
+
+### Completed in Version 2.17.2 (Build 23):
+
+36. **Bulk CSV Upload Telemetry & Sequence Ordering Fix**:
+    - [x] **Physical Sequence Ordering Over Date Tie-Breaks** (`TelemetryEngine`, `GarageProvider`, `SupabaseService`):
+      - Added canonical `TelemetryEngine.sortAscending` and `TelemetryEngine.sortDescending` helpers ordering strictly by `runId` -> `fromOdometer` -> `date` -> partial/full flag -> `createdAt`, unifying ascending calculation and reverse-chronological UI display across cache load, vehicle switch, and cloud fetch.
+      - Updated `SupabaseService.getFuelLogs` query order from `date DESC` to `run_id DESC, from_odometer DESC`.
+      - Fixes bulk-import calculation corruption where a single out-of-order or mistyped CSV date caused subsequent runs to be skipped or linked backward to earlier odometer readings.
+    - [x] **Resilient CSV Header Mapping, Date Scaling & Append Protection** (`CsvService`):
+      - Prevented derived columns (`to_odometer`, `fuel_consumed`) and volume headers (`fuel_volume`, `fuel_qty`) from overwriting `from_odometer` or `fuel_type` during re-imports or custom CSV layouts, and isolated `fill_type` to `colFlag`.
+      - Scoped positional fallback column reading exclusively to headerless CSVs (`!hasHeader`) so omitting optional columns (such as `date`) does not bleed adjacent values across fields.
+      - Scaled blank-date fallback staggering dynamically by total CSV row count (eliminating the 30-row cap) and added `yyyy/MM/dd`, `MM/dd/yyyy`, and UTF-8 BOM handling.
+      - Added `run_id` collision offset when appending CSVs numbered `1..N` onto vehicles with existing logs, and changed omitted fuel-type fallback to `'Standard petrol'`.
+    - [x] **Production Release Build**:
+      - Verified 0 analyzer errors/warnings (`dart analyze lib`) and passed CSV validation suite against real bulk upload datasets.
+      - Built signed, obfuscated `app-prod-release.aab` (`Version - 2.17.2 (Build 23)`).
+
 
 
 
