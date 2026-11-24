@@ -9,8 +9,8 @@ class FuelLog {
   final double fuelCost;
   final double litersToFill;
   final double costPerLtr;
-  final int fromOdometer;
-  final int toOdometer;
+  final double fromOdometer;
+  final double toOdometer;
   final double distanceTraveled;
   final double fuelConsumed;
   final double calculatedMileage;
@@ -30,8 +30,8 @@ class FuelLog {
     required this.fuelCost,
     required this.litersToFill,
     this.costPerLtr = 0.0,
-    this.fromOdometer = 0,
-    this.toOdometer = 0,
+    this.fromOdometer = 0.0,
+    this.toOdometer = 0.0,
     this.distanceTraveled = 0.0,
     this.fuelConsumed = 0.0,
     this.calculatedMileage = 0.0,
@@ -55,8 +55,8 @@ class FuelLog {
       fuelCost: double.tryParse(json['fuel_cost']?.toString() ?? '0') ?? 0.0,
       litersToFill: double.tryParse(json['liters_to_fill']?.toString() ?? '0') ?? 0.0,
       costPerLtr: double.tryParse(json['cost_per_ltr']?.toString() ?? '0') ?? 0.0,
-      fromOdometer: int.tryParse(json['from_odometer']?.toString() ?? '0') ?? 0,
-      toOdometer: int.tryParse(json['to_odometer']?.toString() ?? '0') ?? 0,
+      fromOdometer: double.tryParse(json['from_odometer']?.toString() ?? '0') ?? 0.0,
+      toOdometer: double.tryParse(json['to_odometer']?.toString() ?? '0') ?? 0.0,
       distanceTraveled: double.tryParse(json['distance_traveled']?.toString() ?? '0') ?? 0.0,
       fuelConsumed: double.tryParse(json['fuel_consumed']?.toString() ?? '0') ?? 0.0,
       calculatedMileage: double.tryParse(json['calculated_mileage']?.toString() ?? '0') ?? 0.0,
@@ -100,8 +100,8 @@ class FuelLog {
     double? fuelCost,
     double? litersToFill,
     double? costPerLtr,
-    int? fromOdometer,
-    int? toOdometer,
+    double? fromOdometer,
+    double? toOdometer,
     double? distanceTraveled,
     double? fuelConsumed,
     double? calculatedMileage,

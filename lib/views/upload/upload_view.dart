@@ -132,7 +132,7 @@ class _UploadViewState extends State<UploadView> {
     final date = _dateController.text.trim();
     final cost = double.tryParse(_costController.text.trim()) ?? 0.0;
     final liters = double.tryParse(_litersController.text.trim()) ?? 0.0;
-    final odo = int.tryParse(_odoController.text.trim()) ?? 0;
+    final odo = double.tryParse(_odoController.text.trim()) ?? 0.0;
     final density = double.tryParse(_densityController.text.trim()) ?? 0.0;
 
     setState(() => _isUploading = true);
@@ -167,14 +167,14 @@ class _UploadViewState extends State<UploadView> {
     // Live preview metrics
     final double cost = double.tryParse(_costController.text) ?? 0.0;
     final double liters = double.tryParse(_litersController.text) ?? 0.0;
-    final int odo = int.tryParse(_odoController.text) ?? 0;
-    int prevOdo = garage.summary.latestOdometer;
+    final double odo = double.tryParse(_odoController.text) ?? 0.0;
+    double prevOdo = garage.summary.latestOdometer;
     for (final l in garage.fuelLogs) {
       if (l.fromOdometer > prevOdo) prevOdo = l.fromOdometer;
       if (l.toOdometer > prevOdo) prevOdo = l.toOdometer;
     }
     final double cpl = liters > 0 ? (cost / liters) : 0.0;
-    final double dist = (odo > prevOdo && isFull) ? (odo - prevOdo).toDouble() : 0.0;
+    final double dist = (odo > prevOdo && isFull) ? (odo - prevOdo) : 0.0;
     final double expectedMileage = (dist > 0 && liters > 0) ? (dist / liters) : 0.0;
 
     return Scaffold(
@@ -358,15 +358,15 @@ class _UploadViewState extends State<UploadView> {
                       // Odometer Reading
                       TextFormField(
                         controller: _odoController,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
                         textAlign: TextAlign.center,
                         decoration: InputDecoration(
                           labelText: isFull
                               ? 'Odometer Reading (km) *'
                               : 'Odometer Reading (Optional for Half Tank)',
                           hintText: isFull
-                              ? (prevOdo > 0 ? 'Last: $prevOdo km' : 'e.g. 15000')
+                              ? (prevOdo > 0 ? 'Last: ${prevOdo % 1 == 0 ? prevOdo.toInt() : prevOdo.toStringAsFixed(1)} km' : 'e.g. 15000 or 1542.5')
                               : '0 km (Not required for half tank)',
                           prefixIcon: const Icon(Icons.speed, size: 20),
                         ),
@@ -377,16 +377,17 @@ class _UploadViewState extends State<UploadView> {
                             if (v == null || v.trim().isEmpty || v.trim() == '0') {
                               return null; // Valid (will default to 0)
                             }
-                            final n = int.tryParse(v.trim());
+                            final n = double.tryParse(v.trim());
                             if (n == null || n < 0) return 'Enter valid odometer number';
                             return null;
                           }
                           // Full tank fills require odometer to compute cycle distance and mileage
                           if (v == null || v.trim().isEmpty) return 'Odometer reading is required *';
-                          final n = int.tryParse(v.trim());
+                          final n = double.tryParse(v.trim());
                           if (n == null || n < 0) return 'Enter valid odometer number *';
                           if (prevOdo > 0 && n <= prevOdo) {
-                            return 'Odometer must be greater than previous ($prevOdo km) *';
+                            final prevStr = prevOdo % 1 == 0 ? prevOdo.toInt().toString() : prevOdo.toStringAsFixed(1);
+                            return 'Odometer must be greater than previous ($prevStr km) *';
                           }
                           return null;
                         },

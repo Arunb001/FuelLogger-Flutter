@@ -110,7 +110,7 @@ class CsvService {
       // Clean & parse numbers
       final double cost = _parseDouble(rawCost);
       final double liters = _parseDouble(rawLiters);
-      final int odo = _parseInt(rawOdo);
+      final double odo = _parseDouble(rawOdo);
       final double density = _parseDouble(rawDensity);
 
       // Skip lines that have 0 cost and 0 liters and 0 odo (empty lines)
@@ -144,7 +144,7 @@ class CsvService {
         litersToFill: liters,
         costPerLtr: liters > 0 ? double.parse((cost / liters).toStringAsFixed(2)) : 0.0,
         fromOdometer: odo,
-        toOdometer: 0,
+        toOdometer: 0.0,
         distanceTraveled: 0.0,
         fuelConsumed: liters,
         calculatedMileage: 0.0,
@@ -198,11 +198,6 @@ class CsvService {
     return double.tryParse(s) ?? 0.0;
   }
 
-  static int _parseInt(dynamic val) {
-    if (val == null) return 0;
-    final s = val.toString().replaceAll(RegExp(r'[^0-9]'), '');
-    return int.tryParse(s) ?? 0;
-  }
 
   static String _normalizeDate(String raw, int fallbackIdx) {
     final clean = raw.trim();

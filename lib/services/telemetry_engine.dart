@@ -46,7 +46,7 @@ class TelemetryEngine {
           fuelFillFlag: 'P',
           costPerLtr: cpl,
           fromOdometer: fromOdo,
-          toOdometer: 0,
+          toOdometer: 0.0,
           distanceTraveled: 0.0,
           fuelConsumed: 0.0,
           calculatedMileage: 0.0,
@@ -78,7 +78,9 @@ class TelemetryEngine {
         }
         fuelCons = double.parse(fuelCons.toStringAsFixed(2));
 
-        final dist = (toOdometer > fromOdo && fromOdo > 0) ? (toOdometer - fromOdo).toDouble() : 0.0;
+        final dist = (toOdometer > fromOdo && fromOdo > 0)
+            ? double.parse((toOdometer - fromOdo).toStringAsFixed(2))
+            : 0.0;
         final bool isBreak = (dist > 2000) || (dist <= 0) || (fuelCons > 0 && (dist / fuelCons) > 90);
 
         if (isBreak || dist <= 0 || fuelCons <= 0) {
@@ -112,7 +114,7 @@ class TelemetryEngine {
         recalculated.add(row.copyWith(
           fuelFillFlag: 'F',
           costPerLtr: cpl,
-          toOdometer: 0,
+          toOdometer: 0.0,
           distanceTraveled: 0.0,
           fuelConsumed: 0.0,
           calculatedMileage: 0.0,
@@ -136,7 +138,7 @@ class TelemetryEngine {
     final List<double> validMileages = [];
     double latestMileage = 0.0;
     double latestDist = 0.0;
-    int latestOdo = 0;
+    double latestOdo = 0.0;
     int maxSno = 0;
     int lastSno = 0;
 

@@ -62,7 +62,8 @@ class LogsView extends StatelessWidget {
     final dateCtrl = TextEditingController(text: editDate);
     final costCtrl = TextEditingController(text: log.fuelCost.toString());
     final litersCtrl = TextEditingController(text: log.litersToFill.toString());
-    final odoCtrl = TextEditingController(text: log.fromOdometer.toString());
+    final odoText = log.fromOdometer % 1 == 0 ? log.fromOdometer.toInt().toString() : log.fromOdometer.toString();
+    final odoCtrl = TextEditingController(text: odoText);
 
     showDialog(
       context: context,
@@ -142,7 +143,7 @@ class LogsView extends StatelessWidget {
                     const SizedBox(height: 10),
                     TextField(
                       controller: odoCtrl,
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
                         labelText: 'Odometer (km)',
                         prefixIcon: Icon(Icons.speed, size: 18),
@@ -160,7 +161,7 @@ class LogsView extends StatelessWidget {
                   onPressed: () async {
                     final newCost = double.tryParse(costCtrl.text.trim()) ?? log.fuelCost;
                     final newLiters = double.tryParse(litersCtrl.text.trim()) ?? log.litersToFill;
-                    final newOdo = int.tryParse(odoCtrl.text.trim()) ?? log.fromOdometer;
+                    final newOdo = double.tryParse(odoCtrl.text.trim()) ?? log.fromOdometer;
 
                     Navigator.pop(ctx);
                     final ok = await context.read<GarageProvider>().updateFuelLog(log.id, {
@@ -332,7 +333,7 @@ class LogsView extends StatelessWidget {
                                   const Text('Odometer', style: TextStyle(color: Colors.grey, fontSize: 11)),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '${log.fromOdometer} km',
+                                    '${log.fromOdometer % 1 == 0 ? log.fromOdometer.toInt() : log.fromOdometer} km',
                                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
                                   ),
                                 ],

@@ -306,7 +306,7 @@ class SupabaseService {
         date: data['date'] != null ? data['date'].toString() : existing.date,
         fuelCost: data['fuel_cost'] != null ? (data['fuel_cost'] as num).toDouble() : existing.fuelCost,
         litersToFill: data['liters_to_fill'] != null ? (data['liters_to_fill'] as num).toDouble() : existing.litersToFill,
-        fromOdometer: data['from_odometer'] != null ? (data['from_odometer'] as num).toInt() : existing.fromOdometer,
+        fromOdometer: data['from_odometer'] != null ? (data['from_odometer'] as num).toDouble() : existing.fromOdometer,
         fuelType: data['fuel_type'] != null ? data['fuel_type'].toString() : existing.fuelType,
         fuelDensity: data['fuel_density'] != null ? (data['fuel_density'] as num).toDouble() : existing.fuelDensity,
         fuelFillFlag: data['fuel_fill_flag'] != null ? data['fuel_fill_flag'].toString() : existing.fuelFillFlag,
