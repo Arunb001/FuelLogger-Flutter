@@ -8,12 +8,13 @@
 **Fuel Logger** is a 100% native **Flutter** application for Android (specifically optimized for high-refresh-rate displays like the **Samsung Galaxy S24 Ultra** at 120 Hz). It provides seamless vehicle fuel logging, comprehensive 16-column real-world telemetry calculations (exact cycle math matching the original Python engine), local caching, and instant cloud sync with **Supabase PostgreSQL**.
 
 ### Tech Stack & Architecture
-- **Framework**: Flutter (Channel Stable 3.50.0 / Dart 3.14.0)
-- **Current Version**: `Version - 2.17.2 (Build 23)`
-- **Design System**: AMOLED Dark Theme (`#14161C` background, `#1E222D` card surface, `#FF5252` primary accent, `#69F0AE` mileage green, `#40C4FF` distance blue)
-- **State Management**: `Provider` (`GarageProvider` for active vehicle/logs/telemetry, `AuthProvider` for reactive sessions)
-- **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache
-- **Local Persistence**: `shared_preferences` for vehicle preferences, customization, and instant startup cache
+- **Framework**: Flutter (Channel Stable / Dart)
+- **Current DEV Version**: `Version - 3.0.0 (Build 24)` (`feat/v3-dev` branch; `main` frozen at `Version - 2.17.2 (Build 23)`)
+- **Design System**: Light Theme (`#F5F7FB`) + AMOLED Dark Theme (`#111318`) with `ThemeProvider` (`System` / `Light` / `Dark`) and `AppSemanticColors` `ThemeExtension`
+- **State Management**: `Provider` (`GarageProvider`, `AuthProvider`, `ThemeProvider`)
+- **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache + SQL migrations in `supabase_migrations/`
+- **Charts & Scheduling**: `fl_chart` (mileage trend charts), `flutter_local_notifications` + `timezone` (`inexactAllowWhileIdle`), `workmanager` (12h background announcement sync)
+- **Local Persistence**: `shared_preferences` for vehicle preferences, customization, service log cache, notifications inbox, theme mode, and instant startup cache
 - **Flavors**:
   - **Dev**: Package `com.fuellogger.app.dev`, App Name `"Fuel Logger (DEV)"`
   - **Prod**: Package `com.fuellogger.app`, App Name `"Fuel Logger"`
@@ -379,6 +380,33 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
     - [x] **Production Release Build**:
       - Verified 0 analyzer errors/warnings (`dart analyze lib`) and passed CSV validation suite against real bulk upload datasets.
       - Built signed, obfuscated `app-prod-release.aab` (`Version - 2.17.2 (Build 23)`).
+
+### Completed in Version 3.0.0 (Build 24 — DEV Branch `feat/v3-dev`):
+
+37. **Milestone 1 — Guardrails, Active-Vehicle Integrity & App Version Policy (`BUG-01`, `F7`, `F8`)**:
+    - [x] **Step 0 Baseline Backup**: Tagged `v2.17.2-build23`, created `backup/v2.17.2-pre-v3`, archived production keystore/symbols/AAB locally in `C:\Users\arunb\PycharmProjects\FuelLogger-Backups\v2.17.2-build23\`, and branched `feat/v3-dev`.
+    - [x] **`vehicles.is_active` Atomic Switch (`BUG-01`)**: Created `supabase_migrations/001_v3_milestone1.sql` (`set_active_vehicle` RPC + partial unique index + pre-heal) and wired atomic switching + cache reconciliation in `SupabaseService` & `GarageProvider`.
+    - [x] **2-Vehicle Free Tier Limit + Option B Grandfathering (`F7`)**: Added `user_entitlements` table & trigger backfill (`is_grandfathered = true` for pre-v3 accounts), `UserEntitlement` model, add-only vehicle gate in `GarageProvider`, and `VehicleLimitDialog`.
+    - [x] **2-Backward-Version & Critical App Update Check (`F8`)**: Added `app_config` table, `AppUpdateConfig`, `UpdateCheckerService` (N / N-1 / N-2 optional, <=N-3 or `is_critical` blocking), and `UpdateDialog` (includes `"Bypass (DEV Test)"` when `AppConfig.isDev == true`).
+
+38. **Milestone 2 — Light/Dark/System Theme Engine & UI/UX Shell Overhaul (`F1`, `F2`)**:
+    - [x] **Light + AMOLED Dark Theme Engine (`F2`)**: Added `ThemeProvider` with `SharedPreferences` persistence (`System` / `Light` / `Dark` SegmentedButton in `SettingsView`), and `AppSemanticColors` `ThemeExtension` tokens across all screens.
+    - [x] **Persistent Bottom Navigation & Responsive Rail (`F1`)**: Replaced single-stack home navigation with `MainShell` (`Home`, `Logs`, docked `+ Log`, `Service`, `Insights` bottom bar on phones and `NavigationRail` on `>=720dp` screens).
+    - [x] **Trend Charts & Tabular Numerals**: Added `fl_chart` `MileageTrendCard` on Home and Insights, standardized formatting via `Formatters` (`intl`) with `FontFeature.tabularFigures()`, haptic feedback, and unified `SettingsView` CSV export to delegate through `GarageProvider.exportFuelLogsToCsv()`.
+
+39. **Milestone 3 — Station Name, Remark, Privacy CSV Export & Manage Logs Popup (`F3`, `F4 Option A`)**:
+    - [x] **Station & Remark Storage (`F3`)**: Created `supabase_migrations/002_v3_milestone3_station_remark.sql` (`station_name`, `remark` on `fuel_logs`), updated `FuelLog`, `SupabaseService`, and `UploadView` (station suggestion chips, remark field, compact `Entry #N`, `"Save Fill-Up"`).
+    - [x] **Privacy-Safe CSV Import/Export**: Extended `CsvService` to parse and export optional `station_name` and `remark` columns while keeping derived cycle columns (`to_odometer`, `distance_traveled`, `fuel_consumed`, `calculated_mileage`, `cost_per_km`) excluded from CSV exports.
+    - [x] **Manage Logs Cards & Detail Modal (`F4 Option A`)**: Restored Mileage pill and Station badge on `LogsView` cards while keeping intermediate pairing calculations hidden; tapping any card opens a bottom sheet with full raw inputs + Station/Remark + Edit/Delete actions.
+
+40. **Milestone 4 — Service & Maintenance Logs + Phase 1.5 Notifications (`F5`, `F6`)**:
+    - [x] **Service & Maintenance Tracking (`F5`)**: Created `supabase_migrations/003_v3_milestone4_service_notifications.sql` (`service_logs`, `app_announcements`), `ServiceLog` & `ServiceSummary`, `SupabaseService` & `GarageProvider` offline-capable CRUD, `ServiceLogsView` (2x2 KPIs, quick `+km`/`+months` chips, detail/edit modal), and Home **Service Due Alert Banner**.
+    - [x] **Local, Scheduled & Remote Notifications (`F6`)**: Configured Android `compileSdk = 37`, core library desugaring, `POST_NOTIFICATIONS` & boot receivers (`inexactAllowWhileIdle` only — no exact alarm permissions), R8 `res/raw/keep.xml` & ProGuard rules. Implemented `NotificationService`, `Workmanager` 12-hour sync (`notificationWorkmanagerCallback`), `NotificationsView` inbox, Home notification bell badge, Settings toggle card, and updated `PRIVACY_POLICY.md`.
+
+41. **Milestone 5 — Verification & DEV Build (`3.0.0+24`)**:
+    - [x] **Static Analysis & Tests**: `dart analyze lib test` passed (`No issues found!`) and `flutter test` passed (`+15: All tests passed!` across `test/milestone1_test.dart` and `test/milestone2_to_4_test.dart`).
+    - [x] **DEV Release APK**: Built `build/app/outputs/flutter-apk/app-dev-release.apk` (`57.42 MB`) for real-device QA on `com.fuellogger.app.dev`.
+
 
 
 

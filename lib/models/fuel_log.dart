@@ -16,6 +16,8 @@ class FuelLog {
   final double calculatedMileage;
   final double costPerKm;
   final String fuelFillFlag; // 'F' for Full, 'P' for Partial
+  final String? stationName;
+  final String? remark;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -37,11 +39,19 @@ class FuelLog {
     this.calculatedMileage = 0.0,
     this.costPerKm = 0.0,
     this.fuelFillFlag = 'F',
+    this.stationName,
+    this.remark,
     this.createdAt,
     this.updatedAt,
   });
 
   bool get isPartial => fuelFillFlag.toUpperCase() == 'P';
+
+  static String? _cleanOptionalText(dynamic raw) {
+    if (raw == null) return null;
+    final trimmed = raw.toString().trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
 
   factory FuelLog.fromJson(Map<String, dynamic> json) {
     return FuelLog(
@@ -50,7 +60,7 @@ class FuelLog {
       vehicleId: json['vehicle_id']?.toString() ?? '',
       runId: int.tryParse(json['run_id']?.toString() ?? '1') ?? 1,
       date: json['date']?.toString() ?? '',
-      fuelType: json['fuel_type']?.toString() ?? 'XP95',
+      fuelType: json['fuel_type']?.toString() ?? 'Standard petrol',
       fuelDensity: double.tryParse(json['fuel_density']?.toString() ?? '0') ?? 0.0,
       fuelCost: double.tryParse(json['fuel_cost']?.toString() ?? '0') ?? 0.0,
       litersToFill: double.tryParse(json['liters_to_fill']?.toString() ?? '0') ?? 0.0,
@@ -62,12 +72,16 @@ class FuelLog {
       calculatedMileage: double.tryParse(json['calculated_mileage']?.toString() ?? '0') ?? 0.0,
       costPerKm: double.tryParse(json['cost_per_km']?.toString() ?? '0') ?? 0.0,
       fuelFillFlag: json['fuel_fill_flag']?.toString() ?? 'F',
+      stationName: _cleanOptionalText(json['station_name']),
+      remark: _cleanOptionalText(json['remark']),
       createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at']) : null,
       updatedAt: json['updated_at'] != null ? DateTime.tryParse(json['updated_at']) : null,
     );
   }
 
   Map<String, dynamic> toJson() {
+    final cleanStation = _cleanOptionalText(stationName);
+    final cleanRemark = _cleanOptionalText(remark);
     return {
       if (id.isNotEmpty) 'id': id,
       'user_id': userId,
@@ -86,6 +100,8 @@ class FuelLog {
       'calculated_mileage': calculatedMileage,
       'cost_per_km': costPerKm,
       'fuel_fill_flag': fuelFillFlag,
+      'station_name': cleanStation,
+      'remark': cleanRemark,
     };
   }
 
@@ -107,6 +123,10 @@ class FuelLog {
     double? calculatedMileage,
     double? costPerKm,
     String? fuelFillFlag,
+    String? stationName,
+    String? remark,
+    bool clearStationName = false,
+    bool clearRemark = false,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -128,6 +148,8 @@ class FuelLog {
       calculatedMileage: calculatedMileage ?? this.calculatedMileage,
       costPerKm: costPerKm ?? this.costPerKm,
       fuelFillFlag: fuelFillFlag ?? this.fuelFillFlag,
+      stationName: clearStationName ? null : (stationName ?? this.stationName),
+      remark: clearRemark ? null : (remark ?? this.remark),
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

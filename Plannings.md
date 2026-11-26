@@ -1,6 +1,6 @@
 # Fuel Logger — Master Product & Engineering Plannings
 
-> **Status:** Approved Planning Specification (Ready for Development)  
+> **Status:** Milestones 1–5 Built on `feat/v3-dev` (DEV APK `3.0.0+24` Verified • Pending Real-Device QA & DEV SQL Migrations)  
 > **Active Repository:** `C:\Users\arunb\PycharmProjects\FuelLogger-Flutter` (`https://github.com/Arunb001/FuelLogger-Flutter.git`)  
 > **Current Production Baseline:** `Version - 2.17.2 (Build 23)` (`main` commit `4f3eedd`)  
 > **Play Store Closed Testing Window:** Started `2026-11-24` (21 opted-in testers) • Target Production Apply Date: `~2026-12-08`  
@@ -297,20 +297,20 @@ flowchart LR
 ```
 
 ### Ordered Development Milestones (DEV Only)
-1. **Step 0 — Backup Baseline:** Tag `v2.17.2-build23`, push `backup/v2.17.2-pre-v3`, archive gitignored keystores/symbols/AAB locally, export Supabase SQL, branch `feat/v3-dev`.
-2. **Milestone 1 — Core Guardrails & Bugfix (`DEV`):**
-   - Fix `vehicles.is_active` (`set_active_vehicle` RPC + partial index + `GarageProvider`).
-   - Implement 2-vehicle free limit (with grandfathering protection for existing 3+ vehicle accounts).
-   - Implement `app_config` + critical / 2-backward-version update prompt (`UpdateCheckerService`).
-3. **Milestone 2 — Theme Engine & Human-Crafted UI/UX Overhaul (`DEV`):**
-   - `ThemeProvider` + `AppTheme.lightTheme` + `ThemeExtension<AppSemanticColors>`.
-   - `MainShell` bottom navigation + docked Log action + Home dashboard redesign + `CalculationsView` charts + `intl` formatting & haptics (using Mobbin `redesign-screen` skill).
-4. **Milestone 3 — Station Name, Remark & Manage Logs Popup (`DEV`):**
-   - SQL migration (`station_name`, `remark`), `FuelLog`, `CsvService`, `UploadView` chips, `LogsView` card restoration (`Station` + `Mileage` only, keeping `fuel_consumed` hidden) + tap-to-open Detail Popup with Edit/Delete.
-5. **Milestone 4 — Service Logs & Phase 1.5 Notifications (`DEV`):**
-   - `service_logs` table + `ServiceLogsView` + Home Service Due Banner.
-   - `app_announcements` table + `NotificationsView` + `flutter_local_notifications` + `workmanager` daily background fetch + Settings toggle + `PRIVACY_POLICY.md` update.
-6. **Milestone 5 — Full DEV Verification & Build:**
-   - `dart analyze lib`, `flutter test`, DEV APK foreground build (`--flavor dev -t lib/main_dev.dart --release`), real-device QA by user.
-7. **Post-Approval Only — Production (`v3.0.0`) & Separate Paid Chat (`v3.1.0`):**
-   - Apply PROD Supabase migrations, update Play Console / Privacy Policy if needed, build PROD `.aab` (`--obfuscate --split-debug-info=symbols/`), then hand off Section 6 to the dedicated Paid Chat on `feat/pro-billing`.
+1. **Step 0 — Backup Baseline:** `[DONE - Partial DB Export Pending User]` Tag `v2.17.2-build23`, pushed `backup/v2.17.2-pre-v3`, archived gitignored keystores/symbols/AAB locally in `FuelLogger-Backups\v2.17.2-build23\`, branched `feat/v3-dev`. *(User to export PROD & DEV SQL snapshots into `supabase\` before executing DEV SQL migrations.)*
+2. **Milestone 1 — Core Guardrails & Bugfix (`DEV`):** `[DONE on feat/v3-dev]`
+   - [x] Fix `vehicles.is_active` (`set_active_vehicle` RPC in `001_v3_milestone1.sql` + partial index + `GarageProvider`).
+   - [x] Implement 2-vehicle free limit (`user_entitlements` Option B grandfathering for existing accounts + `VehicleLimitDialog`).
+   - [x] Implement `app_config` + critical / 2-backward-version update prompt (`UpdateCheckerService` + `UpdateDialog` with DEV bypass).
+3. **Milestone 2 — Theme Engine & Human-Crafted UI/UX Overhaul (`DEV`):** `[DONE on feat/v3-dev]`
+   - [x] `ThemeProvider` + `AppTheme.lightTheme` / AMOLED `darkTheme` + `ThemeExtension<AppSemanticColors>`.
+   - [x] `MainShell` bottom navigation + `NavigationRail` + docked Log action + Home dashboard redesign + `CalculationsView` trend chart (`fl_chart`) + `Formatters` & haptics.
+4. **Milestone 3 — Station Name, Remark & Manage Logs Popup (`DEV`):** `[DONE on feat/v3-dev]`
+   - [x] SQL migration (`002_v3_milestone3_station_remark.sql`), `FuelLog`, privacy-safe `CsvService`, `UploadView` chips, `LogsView` card restoration (`Station` + `Mileage` only, keeping `fuel_consumed` hidden) + tap-to-open Detail Popup with Edit/Delete.
+5. **Milestone 4 — Service Logs & Phase 1.5 Notifications (`DEV`):** `[DONE on feat/v3-dev]`
+   - [x] `003_v3_milestone4_service_notifications.sql` (`service_logs` + `app_announcements`) + `ServiceLogsView` + Home Service Due Banner.
+   - [x] `NotificationsView` + `NotificationService` (`flutter_local_notifications`, `inexactAllowWhileIdle`) + `Workmanager` 12h sync + Settings notification toggles + `PRIVACY_POLICY.md` update.
+6. **Milestone 5 — Full DEV Verification & Build:** `[DONE on feat/v3-dev • Pending Device QA]`
+   - [x] `dart analyze lib test` (`No issues found!`), `flutter test` (`+15: All tests passed!`), DEV APK foreground build (`app-dev-release.apk`, `57.42 MB`), real-device QA by user pending DEV SQL run & optional DEV Google Web Client ID.
+7. **Post-Approval Only — Production (`v3.0.0`) & Separate Paid Chat (`v3.1.0`):** `[PENDING USER APPROVAL]`
+   - [ ] Apply PROD Supabase migrations, update Play Console / Privacy Policy if needed, build PROD `.aab` (`--obfuscate --split-debug-info=symbols/`), then hand off Section 6 to the dedicated Paid Chat on `feat/pro-billing`.

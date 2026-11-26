@@ -20,3 +20,6 @@
 -dontwarn javax.annotation.**
 -dontwarn org.conscrypt.**
 -keepnames class okhttp3.internal.publicsuffix.PublicSuffixDatabase
+
+# Local notifications & Gson serialization
+-keep class com.dexterous.flutterlocalnotifications.** { *; }

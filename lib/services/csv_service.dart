@@ -6,8 +6,8 @@ import 'telemetry_engine.dart';
 class CsvService {
   /// Generates a minimal sample CSV template with header and exactly 1 sample row as requested.
   static String generateSampleCsv() {
-    return '''run_id,date,fuel_type,odometer,fuel_cost,liters_to_fill,fuel_density,fill_flag
-1,2026-11-01,Standard petrol,1929,801.00,9.30,750.7,F''';
+    return '''run_id,date,fuel_type,odometer,fuel_cost,liters_to_fill,fuel_density,fill_flag,station_name,remark
+1,2026-11-01,Standard petrol,1929,801.00,9.30,750.7,F,IndianOil,Highway commute''';
   }
 
   /// Parses CSV string into structured FuelLog objects with full cycle telemetry recalculated.
@@ -44,6 +44,8 @@ class CsvService {
     int colLiters = -1;
     int colDensity = -1;
     int colFlag = -1;
+    int colStation = -1;
+    int colRemark = -1;
 
     for (int i = 0; i < rows.length && i < 3; i++) {
       final r = rows[i].map((c) => c.toString().trim().toLowerCase()).toList();
@@ -53,6 +55,10 @@ class CsvService {
           colRunId = c;
         } else if (val.contains('date') || val.contains('time')) {
           if (colDate == -1) colDate = c;
+        } else if (val.contains('station') || val.contains('pump') || val.contains('bunk')) {
+          colStation = c;
+        } else if (val.contains('remark') || val.contains('note') || val.contains('comment')) {
+          colRemark = c;
         } else if (val.contains('flag') || val.contains('fill_type')) {
           colFlag = c;
         } else if (val == 'fuel_type' || val == 'fuel' || val == 'type' ||
@@ -123,6 +129,8 @@ class CsvService {
       final rawLiters = getCol(colLiters, 5);
       final rawDensity = getCol(colDensity, 6);
       final rawFlag = getCol(colFlag, 7);
+      final rawStation = getCol(colStation, 8);
+      final rawRemark = getCol(colRemark, 9);
 
       // Clean & parse numbers
       final double cost = _parseDouble(rawCost);
@@ -168,6 +176,8 @@ class CsvService {
         calculatedMileage: 0.0,
         costPerKm: 0.0,
         fuelFillFlag: flag,
+        stationName: (rawStation.isNotEmpty && rawStation != '-') ? rawStation : null,
+        remark: (rawRemark.isNotEmpty && rawRemark != '-') ? rawRemark : null,
         createdAt: DateTime.now(),
       ));
     }
@@ -192,33 +202,39 @@ class CsvService {
     return TelemetryEngine.recalculateCycles(logs);
   }
 
-  /// Exports fuel logs to a standard CSV string.
+  static String _escapeCsvCell(String? raw) {
+    final val = (raw ?? '').trim();
+    if (val.isEmpty) return '';
+    if (val.contains(',') || val.contains('"') || val.contains('\n')) {
+      return '"${val.replaceAll('"', '""')}"';
+    }
+    return val;
+  }
+
+  /// Exports user-entered fuel log fields to CSV matching Fuel Logger privacy policy
+  /// (derived per-run cycle pairing columns remain omitted).
   static String exportLogsToCsv(List<FuelLog> logs) {
     if (logs.isEmpty) return '';
 
-    // Sort ascending for standard chronology
     final sorted = List<FuelLog>.from(logs);
     TelemetryEngine.sortAscending(sorted);
 
     final buffer = StringBuffer();
-    buffer.writeln('run_id,date,fuel_type,fuel_density,fuel_cost,liters_to_fill,cost_per_ltr,from_odometer,to_odometer,distance_traveled,fuel_consumed,calculated_mileage,cost_per_km,fuel_fill_flag');
+    buffer.writeln('run_id,date,fuel_type,station_name,fuel_density,fuel_cost,liters_to_fill,cost_per_ltr,from_odometer,fuel_fill_flag,remark');
 
     for (final l in sorted) {
       buffer.writeln(
         '${l.runId},'
         '${l.date},'
-        '${l.fuelType},'
+        '${_escapeCsvCell(l.fuelType)},'
+        '${_escapeCsvCell(l.stationName)},'
         '${l.fuelDensity.toStringAsFixed(1)},'
         '${l.fuelCost.toStringAsFixed(2)},'
         '${l.litersToFill.toStringAsFixed(2)},'
         '${l.costPerLtr.toStringAsFixed(2)},'
         '${l.fromOdometer},'
-        '${l.toOdometer},'
-        '${l.distanceTraveled.toStringAsFixed(1)},'
-        '${l.fuelConsumed.toStringAsFixed(2)},'
-        '${l.calculatedMileage.toStringAsFixed(2)},'
-        '${l.costPerKm.toStringAsFixed(2)},'
-        '${l.fuelFillFlag}'
+        '${l.fuelFillFlag},'
+        '${_escapeCsvCell(l.remark)}'
       );
     }
     return buffer.toString();

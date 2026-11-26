@@ -137,74 +137,71 @@ class _CsvImportSheetState extends State<CsvImportSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.appColors;
     final garage = context.watch<GarageProvider>();
 
     return Container(
       padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 32),
-      decoration: const BoxDecoration(
-        color: AppTheme.cardBg,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: c.surfaceCard,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Drag Handle
           Center(
             child: Container(
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: c.subtleBorder,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
           const SizedBox(height: 16),
 
-          // Header
           Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppTheme.primary.withOpacity(0.15),
+                  color: c.accentPrimary.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.file_upload_outlined, color: AppTheme.primary, size: 24),
+                child: Icon(Icons.file_upload_outlined, color: c.accentPrimary, size: 24),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Import Fuel Logs (.csv)',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: c.textPrimary,
                       ),
                     ),
                     Text(
                       'Target vehicle: ${garage.activeVehicleName}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(fontSize: 12, color: c.textSecondary),
                     ),
                   ],
                 ),
               ),
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close, color: Colors.grey),
+                icon: Icon(Icons.close, color: c.textSecondary),
               ),
             ],
           ),
           const SizedBox(height: 20),
 
-          // Option 1 & 2: Upload .csv + Download sample.csv
           Row(
             children: [
-              // 1. Upload .csv
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: _isLoading ? null : _pickFile,
@@ -214,27 +211,26 @@ class _CsvImportSheetState extends State<CsvImportSheet> {
                     style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
+                    backgroundColor: c.accentPrimary,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
 
-              // 2. Download sample.csv
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: _downloadSampleCsv,
-                  icon: const Icon(Icons.download, size: 18, color: AppTheme.distanceBlue),
-                  label: const Text(
+                  icon: Icon(Icons.download, size: 18, color: c.distanceBlue),
+                  label: Text(
                     'Sample .csv',
-                    style: TextStyle(color: AppTheme.distanceBlue, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: c.distanceBlue, fontWeight: FontWeight.bold),
                   ),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppTheme.distanceBlue),
+                    side: BorderSide(color: c.distanceBlue),
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
@@ -242,19 +238,18 @@ class _CsvImportSheetState extends State<CsvImportSheet> {
           ),
           const SizedBox(height: 16),
 
-          // Selected File Status Banner
           if (_selectedFileName != null)
             Container(
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: AppTheme.scaffoldBg,
+                color: c.surfaceElevated,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.mileageGreen.withOpacity(0.4)),
+                border: Border.all(color: c.mileageGreen.withOpacity(0.4)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.check_circle, color: AppTheme.mileageGreen, size: 20),
+                  Icon(Icons.check_circle, color: c.mileageGreen, size: 20),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -262,12 +257,12 @@ class _CsvImportSheetState extends State<CsvImportSheet> {
                       children: [
                         Text(
                           _selectedFileName!,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: c.textPrimary),
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
                           '${_parsedLogs.length} fuel log entries ready to import',
-                          style: const TextStyle(fontSize: 12, color: AppTheme.mileageGreen),
+                          style: TextStyle(fontSize: 12, color: c.mileageGreen),
                         ),
                       ],
                     ),
@@ -276,25 +271,23 @@ class _CsvImportSheetState extends State<CsvImportSheet> {
               ),
             ),
 
-          // Option 3 & 4: Append vs Full Replace
-          const Text(
+          Text(
             'Import Mode:',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white70),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: c.textSecondary),
           ),
           const SizedBox(height: 8),
 
           Container(
             decoration: BoxDecoration(
-              color: AppTheme.scaffoldBg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white10),
+              color: c.surfaceElevated,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: c.subtleBorder),
             ),
             child: Column(
               children: [
-                // Option 3: Append Data
                 InkWell(
                   onTap: () => setState(() => _replaceExisting = false),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     child: Row(
@@ -302,16 +295,16 @@ class _CsvImportSheetState extends State<CsvImportSheet> {
                         Radio<bool>(
                           value: false,
                           groupValue: _replaceExisting,
-                          activeColor: AppTheme.primary,
+                          activeColor: c.accentPrimary,
                           onChanged: (val) => setState(() => _replaceExisting = val ?? false),
                         ),
                         const SizedBox(width: 4),
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Append Data', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                              Text('Keep current logs and add new entries to the end', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                              Text('Append Data', style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.bold, fontSize: 14)),
+                              Text('Keep current logs and add new entries to the end', style: TextStyle(color: c.textSecondary, fontSize: 11)),
                             ],
                           ),
                         ),
@@ -319,12 +312,11 @@ class _CsvImportSheetState extends State<CsvImportSheet> {
                     ),
                   ),
                 ),
-                const Divider(height: 1, color: Colors.white10),
+                Divider(height: 1, color: c.subtleBorder),
 
-                // Option 4: Full Replace Data
                 InkWell(
                   onTap: () => setState(() => _replaceExisting = true),
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     child: Row(
@@ -332,16 +324,16 @@ class _CsvImportSheetState extends State<CsvImportSheet> {
                         Radio<bool>(
                           value: true,
                           groupValue: _replaceExisting,
-                          activeColor: Colors.amber,
+                          activeColor: c.costAmber,
                           onChanged: (val) => setState(() => _replaceExisting = val ?? true),
                         ),
                         const SizedBox(width: 4),
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Full Replace Data', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 14)),
-                              Text('Wipe existing logs for this vehicle and replace completely', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                              Text('Full Replace Data', style: TextStyle(color: c.costAmber, fontWeight: FontWeight.bold, fontSize: 14)),
+                              Text('Wipe existing logs for this vehicle and replace completely', style: TextStyle(color: c.textSecondary, fontSize: 11)),
                             ],
                           ),
                         ),
@@ -354,14 +346,13 @@ class _CsvImportSheetState extends State<CsvImportSheet> {
           ),
           const SizedBox(height: 20),
 
-          // Confirm Action Button
           SizedBox(
             width: double.infinity,
             height: 48,
             child: ElevatedButton(
               onPressed: (_isLoading || _parsedLogs.isEmpty) ? null : _runImport,
               style: ElevatedButton.styleFrom(
-                backgroundColor: _replaceExisting ? Colors.amber.shade800 : AppTheme.primary,
+                backgroundColor: _replaceExisting ? Colors.amber.shade800 : c.accentPrimary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),

@@ -15,17 +15,17 @@ class UserGuideSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxHeight = MediaQuery.of(context).size.height * 0.88;
+    final c = context.appColors;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.88;
 
     return Container(
       constraints: BoxConstraints(maxHeight: maxHeight),
-      decoration: const BoxDecoration(
-        color: AppTheme.cardBg,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: c.surfaceCard,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         children: [
-          // Drag handle and Title Bar
           Padding(
             padding: const EdgeInsets.only(top: 12, left: 20, right: 16, bottom: 8),
             child: Column(
@@ -35,7 +35,7 @@ class UserGuideSheet extends StatelessWidget {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white24,
+                      color: c.subtleBorder,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -46,29 +46,29 @@ class UserGuideSheet extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: AppTheme.mileageGreen.withOpacity(0.15),
+                        color: c.mileageGreen.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.menu_book_outlined, color: AppTheme.mileageGreen, size: 22),
+                      child: Icon(Icons.menu_book_outlined, color: c.mileageGreen, size: 22),
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'User Guide & FAQs',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: c.textPrimary),
                           ),
                           Text(
-                            'How Fuel Logger calculates mileage and telemetry',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                            'How Fuel Logger tracks fills, cycles & service',
+                            style: TextStyle(fontSize: 12, color: c.textSecondary),
                           ),
                         ],
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.grey, size: 22),
+                      icon: Icon(Icons.close, color: c.textSecondary, size: 22),
                       onPressed: () => Navigator.pop(context),
                       tooltip: 'Close',
                     ),
@@ -77,9 +77,8 @@ class UserGuideSheet extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(color: Colors.white12, height: 1),
+          Divider(color: c.subtleBorder, height: 1),
 
-          // Scrollable content
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -87,97 +86,102 @@ class UserGuideSheet extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildSectionHeader(
+                    context,
                     icon: Icons.local_gas_station_outlined,
-                    iconColor: AppTheme.primary,
+                    iconColor: c.accentPrimary,
                     title: '1. Full Tank vs. Half Tank (Partial Fill)',
                   ),
                   const SizedBox(height: 8),
                   _buildGuideCard(
-                    title: 'Full Tank (F) — Cycle Calculations',
-                    titleColor: AppTheme.mileageGreen,
+                    context,
+                    title: 'Full Tank (F) — Accurate Cycle Calculations',
+                    titleColor: c.mileageGreen,
                     content:
-                        '• Distance Traveled = to_odometer - from_odometer.\n'
-                        '• to_odometer is supplied when the next full fill is recorded.\n'
-                        '• Fuel Consumed = Liters filled at next full refill (exact volume burned to travel that distance).\n'
-                        '• Mileage (km/L) = Distance Traveled ÷ Fuel Consumed.\n'
-                        '• Cost per km = Cost per Liter ÷ Mileage.\n'
-                        '• Active Run: The latest fill has to_odometer = 0 and fuel_consumed = 0 while fuel is currently burning in the tank.',
+                        '• Fill all the way to the brim and enter your odometer reading.\n'
+                        '• When your next Full Tank is logged, Fuel Logger pairs your trip interval and fuel volume to calculate exact mileage.\n'
+                        '• Active Entry: Your newest fill shows In Tank until the next Full Tank refill.',
                   ),
                   const SizedBox(height: 10),
                   _buildGuideCard(
+                    context,
                     title: 'Half Tank / Partial (P) — Cycle Remains Open',
-                    titleColor: AppTheme.costAmber,
+                    titleColor: c.costAmber,
                     content:
-                        '• Use whenever you top up with a fixed amount (e.g. ₹500 or 10 L) without filling to the brim.\n'
-                        '• Run # stays locked: If Run #12 is active, 1st half fill and 2nd half fill all stay under Run #12.\n'
-                        '• Odometer is optional: Leave as 0 km or empty.\n'
-                        '• Liters & expenses accumulate: When you next fill Full Tank, mileage is calculated accurately over the full combined fuel volume and distance.',
+                        '• Use whenever you top up without filling to the brim.\n'
+                        '• Entry # stays linked to your open cycle.\n'
+                        '• Odometer is optional on partial fills — leave as 0 or blank if preferred.\n'
+                        '• Combined litres and expenses roll into your next Full Tank calculation automatically.',
                   ),
                   const SizedBox(height: 20),
 
                   _buildSectionHeader(
+                    context,
                     icon: Icons.repeat,
-                    iconColor: AppTheme.distanceBlue,
-                    title: '2. Run Number & Telemetry Progression',
+                    iconColor: c.distanceBlue,
+                    title: '2. Entry Sequence & Progression',
                   ),
                   const SizedBox(height: 8),
                   _buildGuideCard(
-                    title: 'How Cycles Advance',
-                    titleColor: AppTheme.distanceBlue,
+                    context,
+                    title: 'How Entries Advance',
+                    titleColor: c.distanceBlue,
                     content:
-                        '• Each complete cycle is one Run # (e.g. Run 1, Run 2, Run 3).\n'
-                        '• Toggling between Full and Half tank does not change or decrement your current cycle number.\n'
-                        '• In the Logs list, the closing Full Tank is placed on top of earlier partial fills under the same Run # for easy reference.',
+                        '• Each complete full-tank cycle has its own Entry #.\n'
+                        '• Partial fills stay grouped under the active cycle until a closing Full Tank fill is recorded.',
                   ),
                   const SizedBox(height: 20),
 
                   _buildSectionHeader(
+                    context,
                     icon: Icons.edit_calendar_outlined,
-                    iconColor: AppTheme.costAmber,
-                    title: '3. Editing & Correcting Logs',
+                    iconColor: c.costAmber,
+                    title: '3. Viewing, Editing & Deleting Logs',
                   ),
                   const SizedBox(height: 8),
                   _buildGuideCard(
-                    title: 'Tap to Edit or Delete',
-                    titleColor: Colors.white,
+                    context,
+                    title: 'Tap Any Card for Full Details',
+                    titleColor: c.textPrimary,
                     content:
-                        '• On the Logs tab, tap any fuel entry to open the edit dialog.\n'
-                        '• Interactive Date Picker: Tap the calendar button to backdate or correct the fill-up date.\n'
-                        '• Update Liters, Cost, Fuel Type, or Odometer reading anytime.\n'
-                        '• All mileage stats and calculations automatically recalculate in real-time.',
+                        '• In the Logs tab, tap any entry to view full details (station, remarks, density, and mileage).\n'
+                        '• Use Edit to adjust cost, litres, odometer, station, remark, or date.\n'
+                        '• All totals and charts recalculate automatically.',
                   ),
                   const SizedBox(height: 20),
 
                   _buildSectionHeader(
+                    context,
                     icon: Icons.import_export,
-                    iconColor: AppTheme.mileageGreen,
+                    iconColor: c.mileageGreen,
                     title: '4. Backup & CSV Import/Export',
                   ),
                   const SizedBox(height: 8),
                   _buildGuideCard(
+                    context,
                     title: 'Native CSV File Tools',
-                    titleColor: AppTheme.mileageGreen,
+                    titleColor: c.mileageGreen,
                     content:
-                        '• Download CSV: Saves your complete fuel logbook as a .csv file directly to your phone storage.\n'
-                        '• Upload .csv: Pick any CSV file to import multiple logs at once.\n'
-                        '• Download sample.csv: Generates a template with exact column headers and a sample row.\n'
-                        '• Append vs. Full Replace: Choose whether to add imported rows to existing logs or replace them completely.',
+                        '• Download CSV saves your vehicle fill-up records to phone storage.\n'
+                        '• Upload .csv imports historical spreadsheets in bulk.\n'
+                        '• Choose Append Data or Full Replace Data before importing.',
                   ),
                   const SizedBox(height: 20),
 
                   _buildSectionHeader(
+                    context,
                     icon: Icons.cloud_sync_outlined,
-                    iconColor: AppTheme.distanceBlue,
-                    title: '5. Account & Offline Capabilities',
+                    iconColor: c.distanceBlue,
+                    title: '5. Account & Offline Support',
                   ),
                   const SizedBox(height: 8),
                   _buildGuideCard(
-                    title: 'Instant Sign-In & Offline Cache',
-                    titleColor: Colors.white,
+                    context,
+                    title: 'Instant Startup & Cloud Sync',
+                    titleColor: c.textPrimary,
                     content:
-                        '• Set Password in Settings → Account to sign in in 150ms on any device without waiting for emails.\n'
-                        '• Google Sign-In: Supported natively on Android with automatic web fallback.\n'
-                        '• Offline First: Logs are saved instantly on your phone and automatically sync to Supabase Cloud PostgreSQL whenever internet is connected.',
+                        '• Set Password in Settings to sign in quickly across devices.\n'
+                        '• Google Sign-In is supported natively on Android.\n'
+                        '• Logs cache locally for offline startup and sync securely to the cloud.',
                   ),
                   const SizedBox(height: 24),
                 ],
@@ -189,35 +193,41 @@ class UserGuideSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionHeader({
+  Widget _buildSectionHeader(
+    BuildContext context, {
     required IconData icon,
     required Color iconColor,
     required String title,
   }) {
+    final c = context.appColors;
     return Row(
       children: [
         Icon(icon, color: iconColor, size: 20),
         const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: c.textPrimary),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildGuideCard({
+  Widget _buildGuideCard(
+    BuildContext context, {
     required String title,
     required Color titleColor,
     required String content,
   }) {
+    final c = context.appColors;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceHigh,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        color: c.surfaceElevated,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: c.subtleBorder.withOpacity(0.7)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -229,7 +239,7 @@ class UserGuideSheet extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             content,
-            style: const TextStyle(fontSize: 12, color: Colors.white70, height: 1.45),
+            style: TextStyle(fontSize: 12, color: c.textSecondary, height: 1.45),
           ),
         ],
       ),

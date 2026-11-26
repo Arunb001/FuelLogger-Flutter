@@ -1,19 +1,25 @@
 import 'package:flutter/foundation.dart';
 import '../models/vehicle.dart';
 import '../models/fuel_log.dart';
+import '../models/service_log.dart';
 import '../models/telemetry_summary.dart';
+import '../models/user_entitlement.dart';
 import '../services/supabase_service.dart';
 import '../services/telemetry_engine.dart';
 import '../services/cache_service.dart';
 import '../services/csv_service.dart';
+import '../services/notification_service.dart';
 
 class GarageProvider extends ChangeNotifier {
   List<Vehicle> _vehicles = [];
   Vehicle? _activeVehicle;
   List<FuelLog> _fuelLogs = [];
+  List<ServiceLog> _serviceLogs = [];
   TelemetrySummary _summary = TelemetrySummary.empty();
+  ServiceSummary _serviceSummary = ServiceSummary.empty();
   bool _isLoading = false;
   String? _loadedUserId;
+  UserEntitlement _entitlement = const UserEntitlement();
 
   List<String> _fuelTypes = CacheService.getCachedFuelTypes();
 
@@ -26,22 +32,37 @@ class GarageProvider extends ChangeNotifier {
     _vehicles = [];
     _activeVehicle = null;
     _fuelLogs = [];
+    _serviceLogs = [];
     _summary = TelemetrySummary.empty();
+    _serviceSummary = ServiceSummary.empty();
     _fuelTypes = CacheService.getCachedFuelTypes();
+    _entitlement = const UserEntitlement();
     _loadedUserId = null;
     _isLoading = false;
     notifyListeners();
   }
 
+  Vehicle _resolveActiveVehicle(List<Vehicle> list, String? savedActiveName) {
+    if (savedActiveName != null && savedActiveName.isNotEmpty) {
+      for (final v in list) {
+        if (v.name.toLowerCase() == savedActiveName.toLowerCase()) {
+          return v;
+        }
+      }
+    }
+    for (final v in list) {
+      if (v.isActive) return v;
+    }
+    return list.first;
+  }
+
   void _initFromCache() {
+    _entitlement = CacheService.getCachedEntitlement() ?? const UserEntitlement();
     final cached = CacheService.getCachedVehicles();
     if (cached.isNotEmpty) {
       _vehicles = cached;
-      final savedActive = CacheService.getActiveVehicle();
-      _activeVehicle = _vehicles.firstWhere(
-        (v) => v.name.toLowerCase() == savedActive.toLowerCase(),
-        orElse: () => _vehicles.first,
-      );
+      final savedActive = CacheService.getSavedActiveVehicleOrNull();
+      _activeVehicle = _resolveActiveVehicle(_vehicles, savedActive);
 
       // 1. Immediately restore Home Screen metrics from dedicated summary cache
       final homeSummary = CacheService.getCachedHomeSummary(_activeVehicle!.id);
@@ -68,17 +89,39 @@ class GarageProvider extends ChangeNotifier {
         _fuelLogs = sorted;
         _summary = TelemetryEngine.computeSummary(cachedLogs);
       }
+
+      final cachedServices = CacheService.getCachedServiceLogs(_activeVehicle!.id);
+      if (cachedServices.isNotEmpty) {
+        _serviceLogs = _sortServiceLogsDesc(cachedServices);
+        _serviceSummary = ServiceSummary.compute(
+            _serviceLogs, _summary.latestOdometer);
+      }
     }
     _fuelTypes = CacheService.getCachedFuelTypes();
+  }
+
+  List<ServiceLog> _sortServiceLogsDesc(List<ServiceLog> items) {
+    final sorted = List<ServiceLog>.from(items);
+    sorted.sort((a, b) {
+      final d = b.serviceDate.compareTo(a.serviceDate);
+      if (d != 0) return d;
+      return b.odometer.compareTo(a.odometer);
+    });
+    return sorted;
   }
 
   List<Vehicle> get vehicles => _vehicles;
   Vehicle? get activeVehicle => _activeVehicle;
   String get activeVehicleName => _activeVehicle?.name ?? 'My Vehicle';
   List<FuelLog> get fuelLogs => _fuelLogs;
+  List<ServiceLog> get serviceLogs => _serviceLogs;
   TelemetrySummary get summary => _summary;
+  ServiceSummary get serviceSummary => _serviceSummary;
   bool get isLoading => _isLoading;
   List<String> get fuelTypes => _fuelTypes;
+  UserEntitlement get entitlement => _entitlement;
+  int get maxFreeVehicles => _entitlement.maxFreeVehicles;
+  bool get canAddVehicle => _entitlement.canAddVehicle(_vehicles.length);
 
   Future<void> loadGarage() async {
     final currentUid = SupabaseService.userId;
@@ -98,19 +141,27 @@ class GarageProvider extends ChangeNotifier {
 
     try {
       final cloudVehicles = await SupabaseService.getVehicles();
+      _entitlement = await SupabaseService.getUserEntitlement(
+        existingVehicleCount: cloudVehicles.isNotEmpty ? cloudVehicles.length : _vehicles.length,
+      );
 
       if (cloudVehicles.isNotEmpty) {
-        _vehicles = cloudVehicles;
-        final savedActiveName = CacheService.getActiveVehicle();
-        _activeVehicle = _vehicles.firstWhere(
-          (v) => v.name.toLowerCase() == savedActiveName.toLowerCase(),
-          orElse: () => _vehicles.first,
-        );
+        final savedActiveName = CacheService.getSavedActiveVehicleOrNull();
+        final resolved = _resolveActiveVehicle(cloudVehicles, savedActiveName);
+        final bool dbNeedsSync = !resolved.isActive || cloudVehicles.where((v) => v.isActive).length != 1;
+        _vehicles = cloudVehicles.map((v) => v.copyWith(isActive: v.id == resolved.id)).toList();
+        _activeVehicle = _vehicles.firstWhere((v) => v.id == resolved.id, orElse: () => resolved);
+        await CacheService.setActiveVehicle(_activeVehicle!.name);
+        await CacheService.saveCachedVehicles(_vehicles);
+        if (dbNeedsSync && _activeVehicle!.id.isNotEmpty) {
+          SupabaseService.setActiveVehicle(_activeVehicle!.id);
+        }
       } else if (_vehicles.isEmpty) {
         final def = Vehicle(
           id: 'local_primary',
           userId: SupabaseService.userId,
           name: 'My Vehicle',
+          isActive: true,
           iconKey: 'bike',
           colorKey: 'red',
         );
@@ -120,6 +171,7 @@ class GarageProvider extends ChangeNotifier {
       }
 
       await _loadLogsForActiveVehicle();
+      NotificationService.syncRemoteAnnouncements();
     } catch (_) {
     } finally {
       _isLoading = false;
@@ -128,10 +180,13 @@ class GarageProvider extends ChangeNotifier {
   }
 
   Future<void> switchVehicle(Vehicle v) async {
-    _activeVehicle = v;
+    _vehicles = _vehicles.map((item) => item.copyWith(isActive: item.id == v.id)).toList();
+    _activeVehicle = v.copyWith(isActive: true);
     await CacheService.setActiveVehicle(v.name);
+    await CacheService.saveCachedVehicles(_vehicles);
+    SupabaseService.setActiveVehicle(v.id);
 
-    // Instant 0ms switch using cached logs
+    // Instant 0ms switch using cached logs & service records
     final cachedLogs = CacheService.getCachedLogs(v.id);
     if (cachedLogs.isNotEmpty) {
       final sorted = List<FuelLog>.from(cachedLogs);
@@ -142,6 +197,16 @@ class GarageProvider extends ChangeNotifier {
       _fuelLogs = [];
       _summary = TelemetrySummary.empty();
     }
+
+    final cachedServices = CacheService.getCachedServiceLogs(v.id);
+    if (cachedServices.isNotEmpty) {
+      _serviceLogs = _sortServiceLogsDesc(cachedServices);
+      _serviceSummary =
+          ServiceSummary.compute(_serviceLogs, _summary.latestOdometer);
+    } else {
+      _serviceLogs = [];
+      _serviceSummary = ServiceSummary.empty();
+    }
     notifyListeners();
 
     // Revalidate with cloud
@@ -151,20 +216,33 @@ class GarageProvider extends ChangeNotifier {
   Future<void> _loadLogsForActiveVehicle() async {
     if (_activeVehicle == null) {
       _fuelLogs = [];
+      _serviceLogs = [];
       _summary = TelemetrySummary.empty();
+      _serviceSummary = ServiceSummary.empty();
       notifyListeners();
       return;
     }
 
-    final vehicleId = _activeVehicle!.id.isNotEmpty ? _activeVehicle!.id : 'local_primary';
+    final vehicleId =
+        _activeVehicle!.id.isNotEmpty ? _activeVehicle!.id : 'local_primary';
     final rawLogs = await SupabaseService.getFuelLogs(vehicleId);
+    final rawServices = await SupabaseService.getServiceLogs(vehicleId);
+    _serviceLogs = _sortServiceLogsDesc(rawServices);
 
     if (rawLogs.isEmpty) {
       _fuelLogs = [];
       _summary = TelemetrySummary.empty();
+      _serviceSummary = ServiceSummary.compute(_serviceLogs, 0.0);
       CacheService.saveCachedHomeSummary(vehicleId, 0.0, 0.0);
       CacheService.saveCachedLogs(vehicleId, []);
       await syncFuelTypesWithCloudAndLogs([]);
+      await NotificationService.evaluateTelemetryNotifications(
+        vehicle: _activeVehicle!,
+        fuelLogs: _fuelLogs,
+        fuelSummary: _summary,
+        serviceLogs: _serviceLogs,
+        serviceSummary: _serviceSummary,
+      );
       notifyListeners();
       return;
     }
@@ -172,12 +250,15 @@ class GarageProvider extends ChangeNotifier {
     // Compute forward-linking cycle telemetry (to_odometer, fuel_consumed, distance, mileage)
     final recalculated = TelemetryEngine.recalculateCycles(rawLogs);
     _summary = TelemetryEngine.computeSummary(recalculated);
+    _serviceSummary =
+        ServiceSummary.compute(_serviceLogs, _summary.latestOdometer);
 
     // Synchronize user fuel types from cloud DB and actual logs
     await syncFuelTypesWithCloudAndLogs(rawLogs);
 
     // Save home screen summary cache
-    CacheService.saveCachedHomeSummary(vehicleId, _summary.avgMileage, _summary.totalDistance);
+    CacheService.saveCachedHomeSummary(
+        vehicleId, _summary.avgMileage, _summary.totalDistance);
 
     // Asynchronously sync to_odometer and recalculated fields back to Supabase DB
     SupabaseService.syncRecalculatedTelemetry(vehicleId, rawLogs, recalculated);
@@ -185,12 +266,20 @@ class GarageProvider extends ChangeNotifier {
     // Sort reverse-chronological (latest run first)
     TelemetryEngine.sortDescending(recalculated);
     _fuelLogs = recalculated;
+
+    await NotificationService.evaluateTelemetryNotifications(
+      vehicle: _activeVehicle!,
+      fuelLogs: _fuelLogs,
+      fuelSummary: _summary,
+      serviceLogs: _serviceLogs,
+      serviceSummary: _serviceSummary,
+    );
     notifyListeners();
   }
 
   Future<bool> addVehicle(String name) async {
     final clean = name.trim();
-    if (clean.isEmpty) return false;
+    if (clean.isEmpty || !canAddVehicle) return false;
 
     final created = await SupabaseService.addVehicle(clean);
     if (created != null) {
@@ -262,6 +351,24 @@ class GarageProvider extends ChangeNotifier {
     return false;
   }
 
+  List<String> get stationSuggestions {
+    const defaults = ['IndianOil', 'HPCL', 'BPCL', 'Shell', 'Jio-bp'];
+    final seen = <String>{};
+    final result = <String>[];
+    for (final log in _fuelLogs) {
+      final st = log.stationName?.trim();
+      if (st != null && st.isNotEmpty && seen.add(st.toLowerCase())) {
+        result.add(st);
+      }
+    }
+    for (final d in defaults) {
+      if (seen.add(d.toLowerCase())) {
+        result.add(d);
+      }
+    }
+    return result;
+  }
+
   Future<bool> addFuelLog({
     required int runId,
     required String date,
@@ -271,12 +378,16 @@ class GarageProvider extends ChangeNotifier {
     required double fromOdometer,
     double fuelDensity = 0.0,
     String fuelFillFlag = 'F',
+    String? stationName,
+    String? remark,
   }) async {
     if (_activeVehicle == null) return false;
 
     final vehicleId = _activeVehicle!.id.isNotEmpty ? _activeVehicle!.id : 'local_primary';
 
     final double cpl = litersToFill > 0 ? double.parse((fuelCost / litersToFill).toStringAsFixed(2)) : 0.0;
+    final cleanStation = (stationName != null && stationName.trim().isNotEmpty) ? stationName.trim() : null;
+    final cleanRemark = (remark != null && remark.trim().isNotEmpty) ? remark.trim() : null;
 
     final log = FuelLog(
       id: '',
@@ -296,6 +407,8 @@ class GarageProvider extends ChangeNotifier {
       calculatedMileage: 0.0,
       costPerKm: 0.0,
       fuelFillFlag: fuelFillFlag,
+      stationName: cleanStation,
+      remark: cleanRemark,
     );
 
     final res = await SupabaseService.addFuelLog(log);
@@ -319,6 +432,68 @@ class GarageProvider extends ChangeNotifier {
   Future<bool> deleteFuelLog(String id) async {
     final vehicleId = _activeVehicle?.id.isNotEmpty == true ? _activeVehicle!.id : 'local_primary';
     final ok = await SupabaseService.deleteFuelLog(id, vehicleId);
+    if (ok) {
+      await _loadLogsForActiveVehicle();
+      return true;
+    }
+    return false;
+  }
+
+  // ── Service & Maintenance Logs (F5) ──
+
+  Future<bool> addServiceLog({
+    required String serviceDate,
+    required double odometer,
+    required String serviceType,
+    String? serviceCenter,
+    required double totalCost,
+    double? nextDueKm,
+    String? nextDueDate,
+    String? notes,
+  }) async {
+    if (_activeVehicle == null) return false;
+    final vehicleId =
+        _activeVehicle!.id.isNotEmpty ? _activeVehicle!.id : 'local_primary';
+
+    final entry = ServiceLog(
+      id: '',
+      userId: SupabaseService.userId,
+      vehicleId: vehicleId,
+      serviceDate: serviceDate,
+      odometer: odometer,
+      serviceType: serviceType.trim().isEmpty ? 'Periodic Service' : serviceType.trim(),
+      serviceCenter: serviceCenter,
+      totalCost: totalCost,
+      nextDueKm: nextDueKm,
+      nextDueDate: nextDueDate,
+      notes: notes,
+    );
+
+    final created = await SupabaseService.addServiceLog(entry);
+    if (created != null) {
+      await _loadLogsForActiveVehicle();
+      return true;
+    }
+    return false;
+  }
+
+  Future<bool> updateServiceLog(String id, Map<String, dynamic> data) async {
+    final vehicleId = _activeVehicle?.id.isNotEmpty == true
+        ? _activeVehicle!.id
+        : 'local_primary';
+    final ok = await SupabaseService.updateServiceLog(id, vehicleId, data);
+    if (ok) {
+      await _loadLogsForActiveVehicle();
+      return true;
+    }
+    return false;
+  }
+
+  Future<bool> deleteServiceLog(String id) async {
+    final vehicleId = _activeVehicle?.id.isNotEmpty == true
+        ? _activeVehicle!.id
+        : 'local_primary';
+    final ok = await SupabaseService.deleteServiceLog(id, vehicleId);
     if (ok) {
       await _loadLogsForActiveVehicle();
       return true;

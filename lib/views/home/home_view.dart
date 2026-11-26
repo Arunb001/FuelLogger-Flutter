@@ -1,178 +1,444 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/garage_provider.dart';
 import '../../config/env.dart';
+import '../../models/fuel_log.dart';
+import '../../models/service_log.dart';
+import '../../providers/garage_provider.dart';
+import '../../services/cache_service.dart';
+import '../../services/notification_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/vehicle_banner.dart';
+import '../../utils/formatters.dart';
 import '../../widgets/metric_tile.dart';
-import '../upload/upload_view.dart';
-import '../calculations/calculations_view.dart';
-import '../logs/logs_view.dart';
+import '../../widgets/mileage_trend_card.dart';
+import '../../widgets/vehicle_banner.dart';
+import '../notifications/notifications_view.dart';
 import '../settings/settings_view.dart';
+import '../upload/upload_view.dart';
 
-class HomeView extends StatefulWidget {
-  const HomeView({Key? key}) : super(key: key);
+class HomeView extends StatelessWidget {
+  final void Function(int tabIndex)? onSwitchTab;
+  final VoidCallback? onLogTap;
+  final VoidCallback? onOpenNotifications;
 
-  @override
-  State<HomeView> createState() => _HomeViewState();
-}
-
-class _HomeViewState extends State<HomeView> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<GarageProvider>().loadGarage();
-    });
-  }
+  const HomeView({
+    super.key,
+    this.onSwitchTab,
+    this.onLogTap,
+    this.onOpenNotifications,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final c = context.appColors;
     final garage = context.watch<GarageProvider>();
     final summary = garage.summary;
+    final latestLog = garage.fuelLogs.isNotEmpty ? garage.fuelLogs.first : null;
 
-    final avgMileageStr = summary.avgMileage > 0 ? '${summary.avgMileage} km/l' : '-- km/l';
-    final totalKmStr = summary.totalDistance > 0 ? '${summary.totalDistance.toInt()} km' : '-- km';
+    final avgMileageStr = Formatters.mileage(summary.avgMileage);
+    final totalKmStr = Formatters.km(summary.totalDistance);
 
     return Scaffold(
       appBar: AppBar(
         title: Row(
           children: [
-            const Icon(Icons.local_gas_station, color: AppTheme.primary, size: 22),
-            const SizedBox(width: 8),
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: c.accentPrimary.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(Icons.local_gas_station_rounded, color: c.accentPrimary, size: 18),
+            ),
+            const SizedBox(width: 10),
             Text(AppConfig.appName),
             if (AppConfig.isDev) ...[
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppTheme.costAmber.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: AppTheme.costAmber, width: 0.8),
+                  color: c.costAmber.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Text('DEV', style: TextStyle(color: AppTheme.costAmber, fontSize: 10, fontWeight: FontWeight.bold)),
+                child: Text(
+                  'DEV',
+                  style: TextStyle(color: c.costAmber, fontSize: 10, fontWeight: FontWeight.w800),
+                ),
               ),
             ],
           ],
         ),
+        actions: [
+          ValueListenableBuilder<int>(
+            valueListenable: NotificationService.inboxVersion,
+            builder: (context, _, __) {
+              final unread = NotificationService.getUnreadCount();
+              return IconButton(
+                tooltip: 'Notifications',
+                icon: Badge(
+                  isLabelVisible: unread > 0,
+                  label: Text(unread > 9 ? '9+' : '$unread'),
+                  backgroundColor: c.accentPrimary,
+                  child: Icon(
+                    unread > 0
+                        ? Icons.notifications_active_outlined
+                        : Icons.notifications_none_rounded,
+                    color: c.textSecondary,
+                  ),
+                ),
+                onPressed: onOpenNotifications ??
+                    () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const NotificationsView()),
+                      );
+                    },
+              );
+            },
+          ),
+          IconButton(
+            tooltip: 'Settings',
+            icon: Icon(Icons.settings_outlined, color: c.textSecondary),
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsView()));
+            },
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () => garage.loadGarage(),
-        color: AppTheme.primary,
-        backgroundColor: AppTheme.cardBg,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Row 1: Vehicle Banner
-              VehicleBanner(
-                onSettingsTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsView()));
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Row 2: 2-Tile Performance Metrics
-              Row(
+        color: c.accentPrimary,
+        backgroundColor: c.surfaceCard,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: MetricTile(
-                      label: 'Total Avg Mileage',
-                      value: avgMileageStr,
-                      valueColor: AppTheme.mileageGreen,
-                      icon: Icons.speed,
+                  const VehicleBanner(),
+                  if (garage.serviceSummary.needsBanner) ...[
+                    const SizedBox(height: 12),
+                    _ServiceDueAlertBanner(
+                      summary: garage.serviceSummary,
+                      onTap: () => onSwitchTab?.call(2),
                     ),
+                  ],
+                  const SizedBox(height: 16),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: MetricTile(
+                          label: 'Average Mileage',
+                          value: avgMileageStr,
+                          valueColor: c.mileageGreen,
+                          icon: Icons.speed_rounded,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: MetricTile(
+                          label: 'Distance Driven',
+                          value: totalKmStr,
+                          valueColor: c.distanceBlue,
+                          icon: Icons.timeline_rounded,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: MetricTile(
-                      label: 'Total Driven KMs',
-                      value: totalKmStr,
-                      valueColor: AppTheme.distanceBlue,
-                      icon: Icons.timeline,
-                    ),
+                  const SizedBox(height: 14),
+
+                  MileageTrendCard(
+                    logs: garage.fuelLogs,
+                    title: 'Mileage Trend',
+                    maxPoints: 8,
+                    chartHeight: 136,
                   ),
+                  const SizedBox(height: 14),
+
+                  _LatestFillCard(
+                    latestLog: latestLog,
+                    onViewAll: () => onSwitchTab?.call(1),
+                    onLogFirst: onLogTap ??
+                        () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const UploadView()),
+                          );
+                        },
+                  ),
+                  const SizedBox(height: 24),
                 ],
               ),
-              const SizedBox(height: 20),
-
-              // Row 3: Action Navigation Cards
-              _buildNavCard(
-                icon: Icons.local_gas_station,
-                iconColor: AppTheme.primary,
-                title: 'Log New Fill-Up',
-                subtitle: 'Record litres, price, density & odometer',
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const UploadView()));
-                },
-              ),
-              const SizedBox(height: 12),
-
-              _buildNavCard(
-                icon: Icons.insert_chart_outlined,
-                iconColor: AppTheme.distanceBlue,
-                title: 'View Calculations',
-                subtitle: 'Stats & breakdown by fuel type',
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const CalculationsView()));
-                },
-              ),
-              const SizedBox(height: 12),
-
-              _buildNavCard(
-                icon: Icons.receipt_long,
-                iconColor: AppTheme.costAmber,
-                title: 'Manage Logs',
-                subtitle: 'View inputs, edit mistakes or delete logs',
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const LogsView()));
-                },
-              ),
-              const SizedBox(height: 24),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildNavCard({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Card(
+class _LatestFillCard extends StatelessWidget {
+  final FuelLog? latestLog;
+  final VoidCallback onViewAll;
+  final VoidCallback onLogFirst;
+
+  const _LatestFillCard({
+    required this.latestLog,
+    required this.onViewAll,
+    required this.onLogFirst,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.appColors;
+
+    if (latestLog == null) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: c.surfaceCard,
+          borderRadius: BorderRadius.circular(18),
+          border: context.isDarkTheme ? null : Border.all(color: c.subtleBorder),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.local_gas_station_outlined, size: 36, color: c.textMuted),
+            const SizedBox(height: 10),
+            Text(
+              'No Fill-Ups Logged Yet',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Tap below to record your first fill-up and start tracking mileage.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: c.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: onLogFirst,
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('Log First Fill-Up'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final log = latestLog!;
+    final fuelColor = AppTheme.hexToColor(CacheService.getFuelColorHex(log.fuelType));
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: c.surfaceCard,
+        borderRadius: BorderRadius.circular(18),
+        border: context.isDarkTheme ? null : Border.all(color: c.subtleBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Latest Fill-Up',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: c.textPrimary),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: c.surfaceElevated,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Entry #${log.runId}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: c.textSecondary,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: onViewAll,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('See all', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _MiniMetric(
+                label: 'Cost',
+                value: Formatters.currency(log.fuelCost),
+                color: c.costAmber,
+              ),
+              _MiniMetric(
+                label: 'Volume',
+                value: Formatters.liters(log.litersToFill),
+                color: c.distanceBlue,
+              ),
+              _MiniMetric(
+                label: 'Odometer',
+                value: Formatters.odometer(log.fromOdometer),
+                color: c.textPrimary,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: fuelColor, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                log.fuelType,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.textSecondary),
+              ),
+              const Spacer(),
+              Text(
+                Formatters.shortDate(log.date),
+                style: TextStyle(fontSize: 12, color: c.textMuted),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniMetric extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _MiniMetric({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.appColors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(fontSize: 11, color: c.textMuted)),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            color: color,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ServiceDueAlertBanner extends StatelessWidget {
+  final ServiceSummary summary;
+  final VoidCallback onTap;
+
+  const _ServiceDueAlertBanner({
+    required this.summary,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.appColors;
+    final isOverdue = summary.isOverdue;
+    final tint = isOverdue ? c.accentPrimary : c.costAmber;
+
+    final details = <String>[];
+    if (summary.remainingKm != null) {
+      final rem = summary.remainingKm!;
+      details.add(
+        rem <= 0
+            ? 'Overdue by ${rem.abs().round()} km'
+            : '${rem.round()} km remaining',
+      );
+    }
+    if (summary.remainingDays != null) {
+      final d = summary.remainingDays!;
+      details.add(
+        d < 0
+            ? 'Overdue by ${d.abs()} days'
+            : (d == 0 ? 'Due today' : '$d days left'),
+      );
+    }
+
+    return Material(
+      color: tint.withOpacity(0.12),
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: tint.withOpacity(0.45)),
+          ),
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: iconColor, size: 26),
+              Icon(
+                isOverdue
+                    ? Icons.warning_amber_rounded
+                    : Icons.build_circle_outlined,
+                color: tint,
+                size: 22,
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 3),
-                    Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    Text(
+                      isOverdue ? 'Service Overdue' : 'Service Due Soon',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: tint,
+                      ),
+                    ),
+                    if (details.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        details.join(' • '),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: c.textPrimary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
-              const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+              Icon(Icons.chevron_right_rounded, color: tint, size: 20),
             ],
           ),
         ),

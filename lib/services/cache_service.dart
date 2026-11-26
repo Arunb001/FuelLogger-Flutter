@@ -2,6 +2,10 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/vehicle.dart';
 import '../models/fuel_log.dart';
+import '../models/service_log.dart';
+import '../models/user_entitlement.dart';
+import '../models/app_update_config.dart';
+import '../models/app_notification.dart';
 import 'supabase_service.dart';
 
 class CacheService {
@@ -10,9 +14,18 @@ class CacheService {
   static const String _keyVehicleColors = 'vehicle_colors';
   static const String _keyCachedVehicles = 'cached_vehicles';
   static const String _keyPrefixLogs = 'cached_logs_';
+  static const String _keyPrefixServiceLogs = 'cached_service_logs_';
   static const String _keyHomeSummary = 'cached_home_summary_';
   static const String _keyFuelTypes = 'cached_fuel_types';
   static const String _keyFuelColors = 'cached_fuel_colors';
+  static const String _keyEntitlement = 'cached_entitlement';
+  static const String _keyUpdateConfig = 'cached_app_update_config';
+  static const String _keyThemeMode = 'app_theme_mode';
+  static const String _keyNotificationsPrefix = 'cached_notifications_';
+  static const String _keySeenAnnouncements = 'seen_announcement_ids';
+  static const String _keyTriggeredAlertsPrefix = 'triggered_alerts_';
+  static const String _keyWelcomeShownPrefix = 'welcome_notif_shown_';
+  static const String _keyNotifPrefs = 'notification_preferences';
 
   static const List<String> fuelColorPalette = [
     '#FF9800', // Amber / Orange
@@ -35,6 +48,11 @@ class CacheService {
 
   static String getActiveVehicle({String defaultName = 'My Vehicle'}) {
     return _prefs?.getString(_keyActiveVehicle) ?? defaultName;
+  }
+
+  static String? getSavedActiveVehicleOrNull() {
+    final val = _prefs?.getString(_keyActiveVehicle);
+    return (val != null && val.trim().isNotEmpty) ? val.trim() : null;
   }
 
   static Future<void> setActiveVehicle(String name) async {
@@ -204,6 +222,177 @@ class CacheService {
       await prefs.remove(_keyActiveVehicle);
       await prefs.remove(_keyCachedVehicles);
     } catch (_) {}
+  }
+
+  // ── Cached User Entitlement (F7) ──
+
+  static String _entitlementKey([String? userId]) {
+    final uid = userId ?? SupabaseService.userId;
+    return uid.isNotEmpty ? '${_keyEntitlement}_$uid' : _keyEntitlement;
+  }
+
+  static UserEntitlement? getCachedEntitlement([String? userId]) {
+    final raw = _prefs?.getString(_entitlementKey(userId));
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return UserEntitlement.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> saveCachedEntitlement(UserEntitlement entitlement, [String? userId]) async {
+    try {
+      await _prefs?.setString(_entitlementKey(userId), jsonEncode(entitlement.toJson()));
+    } catch (_) {}
+  }
+
+  // ── Cached Update Config (F8) ──
+
+  static AppUpdateConfig? getCachedUpdateConfig() {
+    final raw = _prefs?.getString(_keyUpdateConfig);
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return AppUpdateConfig.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> saveCachedUpdateConfig(AppUpdateConfig config) async {
+    try {
+      await _prefs?.setString(_keyUpdateConfig, jsonEncode(config.toJson()));
+    } catch (_) {}
+  }
+
+  // ── Theme Preference (F2) ──
+
+  static String getSavedThemeMode() {
+    return _prefs?.getString(_keyThemeMode) ?? 'system';
+  }
+
+  static Future<void> saveThemeMode(String mode) async {
+    await _prefs?.setString(_keyThemeMode, mode);
+  }
+
+  // ── Service Logs Cache (F5) ──
+
+  static List<ServiceLog> getCachedServiceLogs(String vehicleId) {
+    if (vehicleId.isEmpty) return [];
+    final raw = _prefs?.getString('$_keyPrefixServiceLogs$vehicleId');
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final list = jsonDecode(raw) as List;
+      return list
+          .map((e) => ServiceLog.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> saveCachedServiceLogs(
+      String vehicleId, List<ServiceLog> logs) async {
+    if (vehicleId.isEmpty) return;
+    final list = logs.map((l) => l.toJson()).toList();
+    await _prefs?.setString('$_keyPrefixServiceLogs$vehicleId', jsonEncode(list));
+  }
+
+  // ── Notifications & Announcements Cache (F6) ──
+
+  static String _notifKey(String? userId) {
+    final uid = (userId ?? SupabaseService.userId).trim();
+    return uid.isEmpty
+        ? '${_keyNotificationsPrefix}guest'
+        : '$_keyNotificationsPrefix$uid';
+  }
+
+  static List<AppNotificationItem> getCachedNotifications([String? userId]) {
+    final raw = _prefs?.getString(_notifKey(userId));
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final list = jsonDecode(raw) as List;
+      final items = list
+          .map((e) => AppNotificationItem.fromJson(e as Map<String, dynamic>))
+          .toList();
+      items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return items;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> saveCachedNotifications(
+      List<AppNotificationItem> items, [String? userId]) async {
+    final trimmed = items.take(50).map((i) => i.toJson()).toList();
+    await _prefs?.setString(_notifKey(userId), jsonEncode(trimmed));
+  }
+
+  static Set<String> getSeenAnnouncementIds() {
+    final list = _prefs?.getStringList(_keySeenAnnouncements) ?? const [];
+    return list.toSet();
+  }
+
+  static Future<void> markAnnouncementSeen(String announcementId) async {
+    final clean = announcementId.trim();
+    if (clean.isEmpty) return;
+    final current = getSeenAnnouncementIds();
+    if (current.add(clean)) {
+      await _prefs?.setStringList(_keySeenAnnouncements, current.toList());
+    }
+  }
+
+  static Set<String> getTriggeredAlertKeys([String? userId]) {
+    final uid = (userId ?? SupabaseService.userId).trim();
+    final key = uid.isEmpty
+        ? '${_keyTriggeredAlertsPrefix}guest'
+        : '$_keyTriggeredAlertsPrefix$uid';
+    return (_prefs?.getStringList(key) ?? const []).toSet();
+  }
+
+  static Future<void> addTriggeredAlertKey(String alertKey, [String? userId]) async {
+    final clean = alertKey.trim();
+    if (clean.isEmpty) return;
+    final uid = (userId ?? SupabaseService.userId).trim();
+    final key = uid.isEmpty
+        ? '${_keyTriggeredAlertsPrefix}guest'
+        : '$_keyTriggeredAlertsPrefix$uid';
+    final current = getTriggeredAlertKeys(userId);
+    if (current.add(clean)) {
+      final list = current.toList();
+      if (list.length > 200) {
+        list.removeRange(0, list.length - 200);
+      }
+      await _prefs?.setStringList(key, list);
+    }
+  }
+
+  static bool wasWelcomeNotificationShown([String? userId]) {
+    final uid = (userId ?? SupabaseService.userId).trim();
+    if (uid.isEmpty) return true;
+    return _prefs?.getBool('$_keyWelcomeShownPrefix$uid') ?? false;
+  }
+
+  static Future<void> markWelcomeNotificationShown([String? userId]) async {
+    final uid = (userId ?? SupabaseService.userId).trim();
+    if (uid.isEmpty) return;
+    await _prefs?.setBool('$_keyWelcomeShownPrefix$uid', true);
+  }
+
+  static NotificationPreferences getNotificationPreferences() {
+    final raw = _prefs?.getString(_keyNotifPrefs);
+    if (raw == null || raw.isEmpty) return const NotificationPreferences();
+    try {
+      return NotificationPreferences.fromJson(
+          jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return const NotificationPreferences();
+    }
+  }
+
+  static Future<void> saveNotificationPreferences(
+      NotificationPreferences prefs) async {
+    await _prefs?.setString(_keyNotifPrefs, jsonEncode(prefs.toJson()));
   }
 
   // ── Cached Fuel Colors ──

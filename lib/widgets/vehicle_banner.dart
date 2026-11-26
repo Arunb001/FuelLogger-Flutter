@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/vehicle.dart';
 import '../providers/garage_provider.dart';
 import '../theme/app_theme.dart';
-import '../models/vehicle.dart';
+import '../utils/formatters.dart';
+import 'vehicle_limit_dialog.dart';
 
 class VehicleBanner extends StatelessWidget {
-  final VoidCallback onSettingsTap;
+  final VoidCallback? onSettingsTap;
 
-  const VehicleBanner({Key? key, required this.onSettingsTap}) : super(key: key);
+  const VehicleBanner({super.key, this.onSettingsTap});
 
   @override
   Widget build(BuildContext context) {
@@ -19,6 +21,10 @@ class VehicleBanner extends StatelessWidget {
 
     final gradientColors = AppTheme.vehicleGradients[colorKey] ?? AppTheme.vehicleGradients['red']!;
     final iconData = AppTheme.vehicleIcons[iconKey] ?? Icons.two_wheeler;
+    final latestOdo = garage.summary.latestOdometer;
+    final subtitleText = latestOdo > 0
+        ? '${Formatters.odometer(latestOdo)} • Tap to switch'
+        : 'Tap to switch or add vehicle';
 
     return Container(
       decoration: BoxDecoration(
@@ -27,30 +33,29 @@ class VehicleBanner extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: gradientColors,
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.borderColor.withOpacity(0.5)),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.4),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: gradientColors.first.withOpacity(context.isDarkTheme ? 0.32 : 0.22),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           onTap: () => _showSwitchVehicleDialog(context, garage),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(11),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.25),
-                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.black.withOpacity(0.24),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(iconData, color: Colors.white, size: 28),
                 ),
@@ -61,37 +66,42 @@ class VehicleBanner extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Flexible(
                             child: Text(
                               vName,
                               style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
+                                fontSize: 19,
+                                fontWeight: FontWeight.w800,
                                 color: Colors.white,
+                                letterSpacing: -0.2,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           const SizedBox(width: 4),
-                          const Icon(Icons.keyboard_arrow_down, color: Colors.white70, size: 20),
+                          const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white70, size: 22),
                         ],
                       ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'Tap to switch vehicle • Garage',
-                        style: TextStyle(fontSize: 11, color: Colors.white70),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitleText,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                          fontFeatures: [FontFeature.tabularFigures()],
+                        ),
                       ),
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.settings, color: Colors.white70),
-                  tooltip: 'Vehicle Settings',
-                  onPressed: onSettingsTap,
-                ),
+                if (onSettingsTap != null)
+                  IconButton(
+                    icon: const Icon(Icons.tune_rounded, color: Colors.white70),
+                    tooltip: 'Vehicle Settings',
+                    onPressed: onSettingsTap,
+                  ),
               ],
             ),
           ),
@@ -101,22 +111,28 @@ class VehicleBanner extends StatelessWidget {
   }
 
   void _showAddVehicleDialog(BuildContext context, GarageProvider garage) {
+    if (!garage.canAddVehicle) {
+      VehicleLimitDialog.show(context, limit: garage.maxFreeVehicles);
+      return;
+    }
+    final c = context.appColors;
     final addCtrl = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          backgroundColor: AppTheme.cardBg,
+          backgroundColor: c.surfaceCard,
           title: Row(
-            children: const [
-              Icon(Icons.add_circle_outline, color: AppTheme.mileageGreen, size: 22),
-              SizedBox(width: 8),
-              Text('Add New Vehicle', style: TextStyle(fontWeight: FontWeight.bold)),
+            children: [
+              Icon(Icons.add_circle_outline, color: c.mileageGreen, size: 22),
+              const SizedBox(width: 8),
+              Text('Add New Vehicle', style: TextStyle(fontWeight: FontWeight.bold, color: c.textPrimary)),
             ],
           ),
           content: TextField(
             controller: addCtrl,
             autofocus: true,
+            textCapitalization: TextCapitalization.words,
             decoration: const InputDecoration(
               labelText: 'Vehicle Name',
               hintText: 'e.g. Honda City',
@@ -126,7 +142,7 @@ class VehicleBanner extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              child: Text('Cancel', style: TextStyle(color: c.textSecondary)),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -137,8 +153,8 @@ class VehicleBanner extends StatelessWidget {
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.mileageGreen,
-                foregroundColor: Colors.black,
+                backgroundColor: c.mileageGreen,
+                foregroundColor: context.isDarkTheme ? Colors.black : Colors.white,
               ),
               child: const Text('Add Vehicle', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
@@ -149,31 +165,32 @@ class VehicleBanner extends StatelessWidget {
   }
 
   void _showSwitchVehicleDialog(BuildContext context, GarageProvider garage) {
+    final c = context.appColors;
     final List<Vehicle> vehicles = garage.vehicles.isNotEmpty
         ? garage.vehicles
         : [
             garage.activeVehicle ??
-                Vehicle(id: 'local_primary', userId: '', name: 'My Vehicle', iconKey: 'bike', colorKey: 'red')
+                Vehicle(id: 'local_primary', userId: '', name: 'My Vehicle', isActive: true, iconKey: 'bike', colorKey: 'red')
           ];
 
     showDialog(
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          backgroundColor: AppTheme.cardBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: c.surfaceCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
-                children: const [
-                  Icon(Icons.directions_car, color: AppTheme.primary, size: 22),
-                  SizedBox(width: 10),
-                  Text('Switch Vehicle', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                children: [
+                  Icon(Icons.garage_outlined, color: c.accentPrimary, size: 22),
+                  const SizedBox(width: 10),
+                  Text('Your Garage', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: c.textPrimary)),
                 ],
               ),
               IconButton(
-                icon: const Icon(Icons.add_circle, color: AppTheme.mileageGreen, size: 24),
+                icon: Icon(Icons.add_circle, color: c.mileageGreen, size: 24),
                 tooltip: 'Add Vehicle',
                 onPressed: () {
                   Navigator.pop(ctx);
@@ -192,25 +209,25 @@ class VehicleBanner extends StatelessWidget {
                     final isSelected = v.id == garage.activeVehicle?.id ||
                         (v.id.isEmpty && v.name == garage.activeVehicleName);
                     final vIcon = AppTheme.vehicleIcons[v.iconKey] ?? Icons.two_wheeler;
-                    final vColor = AppTheme.vehiclePrimaryColors[v.colorKey] ?? AppTheme.primary;
+                    final vColor = AppTheme.vehiclePrimaryColors[v.colorKey] ?? c.accentPrimary;
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       decoration: BoxDecoration(
-                        color: isSelected ? vColor.withOpacity(0.18) : AppTheme.surfaceHigh,
-                        borderRadius: BorderRadius.circular(10),
+                        color: isSelected ? vColor.withOpacity(0.14) : c.surfaceElevated,
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isSelected ? vColor : Colors.transparent,
                           width: 1.5,
                         ),
                       ),
                       child: ListTile(
-                        leading: Icon(vIcon, color: isSelected ? vColor : Colors.white70),
+                        leading: Icon(vIcon, color: isSelected ? vColor : c.textSecondary),
                         title: Text(
                           v.name,
                           style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: c.textPrimary,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                           ),
                         ),
                         trailing: isSelected ? Icon(Icons.check_circle, color: vColor, size: 20) : null,
@@ -227,8 +244,11 @@ class VehicleBanner extends StatelessWidget {
                       Navigator.pop(ctx);
                       _showAddVehicleDialog(context, garage);
                     },
-                    icon: const Icon(Icons.add, size: 16, color: AppTheme.mileageGreen),
-                    label: const Text('+ Add New Vehicle', style: TextStyle(color: AppTheme.mileageGreen, fontWeight: FontWeight.bold)),
+                    icon: Icon(Icons.add_rounded, size: 18, color: c.mileageGreen),
+                    label: Text(
+                      'Add New Vehicle',
+                      style: TextStyle(color: c.mileageGreen, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),
@@ -237,7 +257,7 @@ class VehicleBanner extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Close', style: TextStyle(color: Colors.grey)),
+              child: Text('Close', style: TextStyle(color: c.textSecondary)),
             ),
           ],
         );

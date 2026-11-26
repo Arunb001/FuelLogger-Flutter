@@ -7,10 +7,10 @@ import '../../theme/app_theme.dart';
 import '../../config/version.dart';
 import '../../config/env.dart';
 import '../../widgets/custom_snackbar.dart';
-import '../home/home_view.dart';
+import '../shell/main_shell.dart';
 
 class LoginView extends StatefulWidget {
-  const LoginView({Key? key}) : super(key: key);
+  const LoginView({super.key});
 
   @override
   State<LoginView> createState() => _LoginViewState();
@@ -33,7 +33,7 @@ class _LoginViewState extends State<LoginView> {
   void _onSuccess() {
     context.read<GarageProvider>().loadGarage();
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const HomeView()),
+      MaterialPageRoute(builder: (_) => const MainShell()),
     );
   }
 
@@ -67,51 +67,45 @@ class _LoginViewState extends State<LoginView> {
   }
 
   Future<void> _handleGoogleSignIn() async {
-    // In DEV environment, Supabase has Google OAuth provider disabled.
-    // Show an informative dialog instead of redirecting to a broken browser page.
-    if (AppConfig.isDev) {
+    final c = context.appColors;
+    if (AppConfig.isDev && (AppConfig.googleWebClientId == null || AppConfig.googleWebClientId!.isEmpty)) {
       final proceed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: AppTheme.cardBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: c.surfaceCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           title: Row(
-            children: const [
-              Icon(Icons.info_outline, color: AppTheme.costAmber, size: 24),
-              SizedBox(width: 8),
-              Flexible(child: Text('DEV Environment Notice', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+            children: [
+              Icon(Icons.info_outline, color: c.costAmber, size: 24),
+              const SizedBox(width: 8),
+              const Flexible(child: Text('DEV OAuth Setup Pending', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              Text(
-                'Google Sign-In is disabled on the DEV Supabase backend ("Unsupported provider: provider is not enabled").',
+            children: [
+              const Text(
+                'DEV Web Client ID is not yet set in env_dev.dart.',
                 style: TextStyle(fontSize: 13, height: 1.4),
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               Text(
-                'For testing on DEV, please use:\n'
+                'For testing on DEV right now, you can use:\n'
                 '• Sign In with Password (or create an account)\n'
                 '• Continue as Guest (Offline Mode)',
-                style: TextStyle(fontSize: 13, color: Colors.white70, height: 1.4),
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Note: Google Sign-In is active and fully configured on PROD.',
-                style: TextStyle(fontSize: 12, color: AppTheme.distanceBlue, fontStyle: FontStyle.italic),
+                style: TextStyle(fontSize: 13, color: c.textSecondary, height: 1.4),
               ),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('OK, Use Password / Guest', style: TextStyle(color: Colors.white70)),
+              child: Text('Use Password / Guest', style: TextStyle(color: c.textSecondary)),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Try Anyway', style: TextStyle(color: AppTheme.costAmber)),
+              child: Text('Try Anyway', style: TextStyle(color: c.costAmber)),
             ),
           ],
         ),
@@ -134,6 +128,7 @@ class _LoginViewState extends State<LoginView> {
   }
 
   void _showForgotPasswordDialog() {
+    final c = context.appColors;
     final resetCtrl = TextEditingController(text: _emailController.text.trim());
     final linkCtrl = TextEditingController();
     final codeCtrl = TextEditingController();
@@ -149,13 +144,13 @@ class _LoginViewState extends State<LoginView> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              backgroundColor: AppTheme.cardBg,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: c.surfaceCard,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
               title: Row(
-                children: const [
-                  Icon(Icons.lock_reset, color: AppTheme.costAmber, size: 24),
-                  SizedBox(width: 8),
-                  Text('Reset Password', style: TextStyle(fontWeight: FontWeight.bold)),
+                children: [
+                  Icon(Icons.lock_reset, color: c.costAmber, size: 24),
+                  const SizedBox(width: 8),
+                  const Text('Reset Password', style: TextStyle(fontWeight: FontWeight.bold)),
                 ],
               ),
               content: SingleChildScrollView(
@@ -164,9 +159,9 @@ class _LoginViewState extends State<LoginView> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (!emailSent) ...[
-                      const Text(
+                      Text(
                         'Enter your email to receive a password reset link from Supabase.',
-                        style: TextStyle(fontSize: 13, color: Colors.grey),
+                        style: TextStyle(fontSize: 13, color: c.textSecondary),
                       ),
                       const SizedBox(height: 14),
                       TextField(
@@ -179,28 +174,27 @@ class _LoginViewState extends State<LoginView> {
                         ),
                       ),
                     ] else if (!useCodeMode) ...[
-                      // Link Paste Mode (Default for Supabase link emails)
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: AppTheme.surfaceHigh,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppTheme.borderColor),
+                          color: c.surfaceElevated,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: c.subtleBorder),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
+                          children: [
                             Text(
                               'How to reset using the link:',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppTheme.costAmber),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: c.costAmber),
                             ),
-                            SizedBox(height: 4),
+                            const SizedBox(height: 4),
                             Text(
                               '• If you clicked the email link and Chrome showed "localhost:3000":\n'
                               '  Copy the URL from Chrome\'s address bar (localhost:3000/#access_token=...) and paste it below.\n'
                               '• If copying directly from email:\n'
                               '  Long-press "Reset password" -> "Copy link address" and paste below without opening in browser first.',
-                              style: TextStyle(fontSize: 11, color: Colors.white70, height: 1.3),
+                              style: TextStyle(fontSize: 11, color: c.textSecondary, height: 1.3),
                             ),
                           ],
                         ),
@@ -222,7 +216,7 @@ class _LoginViewState extends State<LoginView> {
                           ),
                           const SizedBox(width: 6),
                           IconButton(
-                            icon: const Icon(Icons.paste, color: AppTheme.distanceBlue),
+                            icon: Icon(Icons.paste, color: c.distanceBlue),
                             tooltip: 'Paste from clipboard',
                             onPressed: () async {
                               final data = await Clipboard.getData(Clipboard.kTextPlain);
@@ -249,17 +243,16 @@ class _LoginViewState extends State<LoginView> {
                         alignment: Alignment.centerRight,
                         child: GestureDetector(
                           onTap: () => setDialogState(() => useCodeMode = true),
-                          child: const Text(
+                          child: Text(
                             'Received a 6-digit code instead? Tap to enter code',
-                            style: TextStyle(color: AppTheme.distanceBlue, fontSize: 11, decoration: TextDecoration.underline),
+                            style: TextStyle(color: c.distanceBlue, fontSize: 11, decoration: TextDecoration.underline),
                           ),
                         ),
                       ),
                     ] else ...[
-                      // 6-digit code mode (Default)
                       Text(
                         'Enter the 6-digit recovery code sent to ${resetCtrl.text.trim()} and your new password.',
-                        style: const TextStyle(fontSize: 13, color: Colors.grey),
+                        style: TextStyle(fontSize: 13, color: c.textSecondary),
                       ),
                       const SizedBox(height: 12),
                       TextField(
@@ -289,9 +282,9 @@ class _LoginViewState extends State<LoginView> {
                         alignment: Alignment.centerRight,
                         child: GestureDetector(
                           onTap: () => setDialogState(() => useCodeMode = false),
-                          child: const Text(
+                          child: Text(
                             'Received an email link instead? Tap to paste link',
-                            style: TextStyle(color: AppTheme.distanceBlue, fontSize: 11, decoration: TextDecoration.underline),
+                            style: TextStyle(color: c.distanceBlue, fontSize: 11, decoration: TextDecoration.underline),
                           ),
                         ),
                       ),
@@ -303,8 +296,8 @@ class _LoginViewState extends State<LoginView> {
                         style: TextStyle(
                           fontSize: 12,
                           color: statusMsg.contains('Error') || statusMsg.contains('Failed') || statusMsg.contains('Invalid') || statusMsg.contains('Could not')
-                              ? Colors.redAccent
-                              : Colors.greenAccent,
+                              ? c.accentPrimary
+                              : c.mileageGreen,
                         ),
                       ),
                     ],
@@ -314,7 +307,7 @@ class _LoginViewState extends State<LoginView> {
               actions: [
                 TextButton(
                   onPressed: isWorking ? null : () => Navigator.pop(ctx),
-                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                  child: Text('Cancel', style: TextStyle(color: c.textSecondary)),
                 ),
                 if (!emailSent)
                   ElevatedButton(
@@ -341,7 +334,7 @@ class _LoginViewState extends State<LoginView> {
                               }
                             });
                           },
-                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
+                    style: ElevatedButton.styleFrom(backgroundColor: c.accentPrimary, foregroundColor: Colors.white),
                     child: Text(isWorking ? 'Sending...' : 'Send Reset Email'),
                   )
                 else if (!useCodeMode)
@@ -378,7 +371,10 @@ class _LoginViewState extends State<LoginView> {
                               });
                             }
                           },
-                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.mileageGreen, foregroundColor: Colors.black),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: c.mileageGreen,
+                      foregroundColor: context.isDarkTheme ? Colors.black : Colors.white,
+                    ),
                     child: Text(isWorking ? 'Updating...' : 'Set Password & Log In', style: const TextStyle(fontWeight: FontWeight.bold)),
                   )
                 else
@@ -416,7 +412,10 @@ class _LoginViewState extends State<LoginView> {
                               });
                             }
                           },
-                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.mileageGreen, foregroundColor: Colors.black),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: c.mileageGreen,
+                      foregroundColor: context.isDarkTheme ? Colors.black : Colors.white,
+                    ),
                     child: Text(isWorking ? 'Updating...' : 'Set Password & Log In', style: const TextStyle(fontWeight: FontWeight.bold)),
                   ),
               ],
@@ -429,6 +428,7 @@ class _LoginViewState extends State<LoginView> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.appColors;
     final auth = context.watch<AuthProvider>();
 
     return Scaffold(
@@ -440,7 +440,6 @@ class _LoginViewState extends State<LoginView> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // App Logo
                 Container(
                   width: 80,
                   height: 80,
@@ -448,7 +447,7 @@ class _LoginViewState extends State<LoginView> {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: AppTheme.primary.withOpacity(0.3),
+                        color: c.accentPrimary.withOpacity(0.28),
                         blurRadius: 15,
                         offset: const Offset(0, 5),
                       ),
@@ -463,48 +462,47 @@ class _LoginViewState extends State<LoginView> {
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
                         padding: const EdgeInsets.all(16),
-                        color: AppTheme.surfaceHigh,
-                        child: const Icon(Icons.local_gas_station, size: 48, color: AppTheme.primary),
+                        color: c.surfaceElevated,
+                        child: Icon(Icons.local_gas_station, size: 48, color: c.accentPrimary),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Fuel Logger',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.3, color: c.textPrimary),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'Mileage Tracker',
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                  style: TextStyle(fontSize: 13, color: c.textSecondary),
                 ),
                 const SizedBox(height: 28),
 
-                // Auth Card
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(22),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // 1. Google Native Sign-In Button
                         ElevatedButton(
                           onPressed: auth.isLoading ? null : _handleGoogleSignIn,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
+                            backgroundColor: context.isDarkTheme ? Colors.white : c.surfaceElevated,
                             foregroundColor: Colors.black87,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(12),
+                              side: context.isDarkTheme ? BorderSide.none : BorderSide(color: c.subtleBorder),
                             ),
-                            elevation: 1,
+                            elevation: 0,
                           ),
-                          child: const Center(
+                          child: Center(
                             child: Text(
                               'Sign in with Google',
                               style: TextStyle(
-                                color: Colors.black87,
+                                color: context.isDarkTheme ? Colors.black87 : c.textPrimary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 15,
                               ),
@@ -513,27 +511,25 @@ class _LoginViewState extends State<LoginView> {
                         ),
                         const SizedBox(height: 18),
 
-                        // OR Divider
                         Row(
-                          children: const [
-                            Expanded(child: Divider(color: AppTheme.borderColor)),
+                          children: [
+                            Expanded(child: Divider(color: c.subtleBorder)),
                             Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 12),
-                              child: Text('OR', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: Text('OR', style: TextStyle(color: c.textMuted, fontSize: 11, fontWeight: FontWeight.bold)),
                             ),
-                            Expanded(child: Divider(color: AppTheme.borderColor)),
+                            Expanded(child: Divider(color: c.subtleBorder)),
                           ],
                         ),
                         const SizedBox(height: 18),
 
-                        // Mode Title
                         Row(
                           children: [
-                            const Icon(Icons.lock_outline, color: AppTheme.primary, size: 20),
+                            Icon(Icons.lock_outline, color: c.accentPrimary, size: 20),
                             const SizedBox(width: 8),
                             Text(
                               _isSignUpMode ? 'Create Account' : 'Sign In with Password',
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: c.textPrimary),
                             ),
                           ],
                         ),
@@ -542,11 +538,10 @@ class _LoginViewState extends State<LoginView> {
                           _isSignUpMode
                               ? 'Enter your email and create a password (min 6 chars).'
                               : 'Enter your credentials to log in.',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          style: TextStyle(fontSize: 12, color: c.textSecondary),
                         ),
                         const SizedBox(height: 18),
 
-                        // Email Field
                         TextField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
@@ -558,7 +553,6 @@ class _LoginViewState extends State<LoginView> {
                         ),
                         const SizedBox(height: 14),
 
-                        // Password Field
                         TextField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
@@ -574,15 +568,14 @@ class _LoginViewState extends State<LoginView> {
                         ),
                         const SizedBox(height: 6),
 
-                        // Forgot Password Link (Sign in mode only)
                         if (!_isSignUpMode) ...[
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
                               onPressed: _showForgotPasswordDialog,
-                              child: const Text(
+                              child: Text(
                                 'Forgot password?',
-                                style: TextStyle(color: AppTheme.distanceBlue, fontSize: 12),
+                                style: TextStyle(color: c.distanceBlue, fontSize: 12),
                               ),
                             ),
                           ),
@@ -590,14 +583,13 @@ class _LoginViewState extends State<LoginView> {
                           const SizedBox(height: 10),
                         ],
 
-                        // Main Action Button (Sign In / Create Account)
                         ElevatedButton(
                           onPressed: auth.isLoading ? null : _handlePasswordAction,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.primary,
+                            backgroundColor: c.accentPrimary,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           child: auth.isLoading
                               ? const SizedBox(
@@ -627,14 +619,13 @@ class _LoginViewState extends State<LoginView> {
                         ),
                         const SizedBox(height: 14),
 
-                        // Toggle Sign Up / Sign In
                         TextButton(
                           onPressed: () => setState(() => _isSignUpMode = !_isSignUpMode),
                           child: Text(
                             _isSignUpMode
                                 ? 'Already have an account? Sign In'
                                 : 'New to Fuel Logger? Create account',
-                            style: const TextStyle(color: AppTheme.costAmber, fontSize: 13, fontWeight: FontWeight.bold),
+                            style: TextStyle(color: c.costAmber, fontSize: 13, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],
@@ -642,7 +633,6 @@ class _LoginViewState extends State<LoginView> {
                   ),
                 ),
 
-                // Guest Mode (DEV only - completely removed on Production)
                 if (AppConfig.isDev) ...[
                   const SizedBox(height: 14),
                   TextButton(
@@ -650,18 +640,17 @@ class _LoginViewState extends State<LoginView> {
                       auth.continueAsGuest();
                       _onSuccess();
                     },
-                    child: const Text(
+                    child: Text(
                       'Continue as Guest (Offline Mode)',
-                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                      style: TextStyle(color: c.textSecondary, fontSize: 13),
                     ),
                   ),
                 ],
 
                 const SizedBox(height: 28),
-                // Version display - only "Version - #"
                 Text(
                   AppVersion.display,
-                  style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w500),
+                  style: TextStyle(color: c.textMuted, fontSize: 12, fontWeight: FontWeight.w500),
                 ),
               ],
             ),

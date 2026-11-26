@@ -1,15 +1,33 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../config/env.dart';
 import '../models/vehicle.dart';
 import '../models/fuel_log.dart';
+import '../models/service_log.dart';
+import '../models/user_entitlement.dart';
+import '../models/app_notification.dart';
 import 'cache_service.dart';
 
 class SupabaseService {
   static SupabaseClient get client => Supabase.instance.client;
 
-  static User? get currentUser => client.auth.currentUser;
-  static Session? get currentSession => client.auth.currentSession;
+  static User? get currentUser {
+    try {
+      return client.auth.currentUser;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Session? get currentSession {
+    try {
+      return client.auth.currentSession;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static bool get hasValidSession => currentSession != null;
   static bool get isAuthenticated => currentUser != null && hasValidSession;
   static String get userEmail => currentUser?.email ?? 'guest@fuellogger.app';
@@ -130,7 +148,8 @@ class SupabaseService {
         // If authenticated user has 0 vehicles in cloud (new user), auto-provision initial vehicle
         final initial = await addVehicle('My Vehicle');
         if (initial != null) {
-          return [initial];
+          await setActiveVehicle(initial.id);
+          return [initial.copyWith(isActive: true)];
         }
       } catch (_) {
         // Network or offline error: fallback to locally cached vehicles
@@ -226,6 +245,61 @@ class SupabaseService {
     return true;
   }
 
+  /// Atomically sets [vehicleId] as active in Supabase via `set_active_vehicle` RPC
+  /// and mirrors `isActive` state into local cache.
+  static Future<bool> setActiveVehicle(String vehicleId) async {
+    if (vehicleId.isEmpty) return false;
+
+    final cached = CacheService.getCachedVehicles();
+    if (cached.isNotEmpty) {
+      final updated = cached.map((v) => v.copyWith(isActive: v.id == vehicleId)).toList();
+      await CacheService.saveCachedVehicles(updated);
+    }
+
+    if (isAuthenticated && !vehicleId.startsWith('local_')) {
+      try {
+        await client.rpc('set_active_vehicle', params: {'p_vehicle_id': vehicleId});
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Fetches user entitlement (F7) from Supabase `user_entitlements`, with safe offline/legacy fallback.
+  static Future<UserEntitlement> getUserEntitlement({int existingVehicleCount = 0}) async {
+    final uid = userId;
+    if (isAuthenticated && uid.isNotEmpty) {
+      try {
+        final res = await client
+            .from('user_entitlements')
+            .select()
+            .eq('user_id', uid)
+            .maybeSingle();
+
+        if (res != null) {
+          final ent = UserEntitlement.fromJson(res);
+          await CacheService.saveCachedEntitlement(ent, uid);
+          return ent;
+        }
+      } catch (_) {}
+    }
+
+    final cached = CacheService.getCachedEntitlement(uid);
+    if (cached != null) return cached;
+
+    // Protect existing accounts if entitlement row hasn't synced yet
+    if (existingVehicleCount > 2) {
+      return UserEntitlement(
+        userId: uid,
+        isGrandfathered: true,
+        maxFreeVehicles: 2,
+      );
+    }
+    return UserEntitlement(userId: uid);
+  }
+
   // ── Fuel Logs CRUD ──
 
   static Future<List<FuelLog>> getFuelLogs(String vehicleId) async {
@@ -281,6 +355,8 @@ class SupabaseService {
       calculatedMileage: log.calculatedMileage,
       costPerKm: log.costPerKm,
       fuelFillFlag: log.fuelFillFlag,
+      stationName: log.stationName,
+      remark: log.remark,
       createdAt: DateTime.now(),
     );
 
@@ -310,6 +386,10 @@ class SupabaseService {
         fuelType: data['fuel_type'] != null ? data['fuel_type'].toString() : existing.fuelType,
         fuelDensity: data['fuel_density'] != null ? (data['fuel_density'] as num).toDouble() : existing.fuelDensity,
         fuelFillFlag: data['fuel_fill_flag'] != null ? data['fuel_fill_flag'].toString() : existing.fuelFillFlag,
+        stationName: data.containsKey('station_name') ? (data['station_name']?.toString().trim().isNotEmpty == true ? data['station_name'].toString().trim() : null) : existing.stationName,
+        clearStationName: data.containsKey('station_name') && (data['station_name'] == null || data['station_name'].toString().trim().isEmpty),
+        remark: data.containsKey('remark') ? (data['remark']?.toString().trim().isNotEmpty == true ? data['remark'].toString().trim() : null) : existing.remark,
+        clearRemark: data.containsKey('remark') && (data['remark'] == null || data['remark'].toString().trim().isEmpty),
       );
       list[idx] = updated;
       await CacheService.saveCachedLogs(vehicleId, list);
@@ -531,6 +611,145 @@ class SupabaseService {
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  // ── Service Logs Cloud CRUD (F5) ──
+
+  static Future<List<ServiceLog>> getServiceLogs(String vehicleId) async {
+    final localCached = CacheService.getCachedServiceLogs(vehicleId);
+    if (!isAuthenticated ||
+        userId.isEmpty ||
+        vehicleId.isEmpty ||
+        vehicleId.startsWith('local_')) {
+      return localCached;
+    }
+
+    try {
+      final res = await client
+          .from('service_logs')
+          .select()
+          .eq('vehicle_id', vehicleId)
+          .order('service_date', ascending: false);
+
+      final cloud = (res as List)
+          .map((e) => ServiceLog.fromJson(e as Map<String, dynamic>))
+          .toList();
+      await CacheService.saveCachedServiceLogs(vehicleId, cloud);
+      return cloud;
+    } catch (_) {
+      return localCached;
+    }
+  }
+
+  static Future<ServiceLog?> addServiceLog(ServiceLog log) async {
+    if (!isAuthenticated ||
+        userId.isEmpty ||
+        log.vehicleId.isEmpty ||
+        log.vehicleId.startsWith('local_')) {
+      final local = log.copyWith(
+        id: 'svc_${DateTime.now().millisecondsSinceEpoch}',
+        userId: userId,
+      );
+      final cached = CacheService.getCachedServiceLogs(log.vehicleId);
+      cached.insert(0, local);
+      await CacheService.saveCachedServiceLogs(log.vehicleId, cached);
+      return local;
+    }
+
+    try {
+      final payload = log.toInsertJson();
+      payload['user_id'] = userId;
+      final res = await client
+          .from('service_logs')
+          .insert(payload)
+          .select()
+          .single();
+      final created = ServiceLog.fromJson(res);
+      final cached = CacheService.getCachedServiceLogs(log.vehicleId);
+      cached.insert(0, created);
+      await CacheService.saveCachedServiceLogs(log.vehicleId, cached);
+      return created;
+    } catch (e) {
+      debugPrint('SupabaseService.addServiceLog error: $e');
+      return null;
+    }
+  }
+
+  static Future<bool> updateServiceLog(
+      String id, String vehicleId, Map<String, dynamic> data) async {
+    final cached = CacheService.getCachedServiceLogs(vehicleId);
+    final idx = cached.indexWhere((s) => s.id == id);
+
+    if (!isAuthenticated ||
+        vehicleId.startsWith('local_') ||
+        id.startsWith('svc_')) {
+      if (idx != -1) {
+        final merged = cached[idx].toJson()..addAll(data);
+        cached[idx] = ServiceLog.fromJson(merged);
+        await CacheService.saveCachedServiceLogs(vehicleId, cached);
+      }
+      return true;
+    }
+
+    try {
+      await client
+          .from('service_logs')
+          .update(data)
+          .eq('id', id)
+          .eq('user_id', userId);
+      if (idx != -1) {
+        final merged = cached[idx].toJson()..addAll(data);
+        cached[idx] = ServiceLog.fromJson(merged);
+        await CacheService.saveCachedServiceLogs(vehicleId, cached);
+      }
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.updateServiceLog error: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> deleteServiceLog(String id, String vehicleId) async {
+    final cached = CacheService.getCachedServiceLogs(vehicleId)
+      ..removeWhere((s) => s.id == id);
+
+    if (!isAuthenticated ||
+        vehicleId.startsWith('local_') ||
+        id.startsWith('svc_')) {
+      await CacheService.saveCachedServiceLogs(vehicleId, cached);
+      return true;
+    }
+
+    try {
+      await client
+          .from('service_logs')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', userId);
+      await CacheService.saveCachedServiceLogs(vehicleId, cached);
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.deleteServiceLog error: $e');
+      return false;
+    }
+  }
+
+  // ── App Announcements / Remote Wishes (F6) ──
+
+  static Future<List<AppAnnouncement>> getActiveAnnouncements() async {
+    try {
+      final res = await client
+          .from('app_announcements')
+          .select()
+          .eq('is_active', true)
+          .order('created_at', ascending: false)
+          .limit(20);
+      return (res as List)
+          .map((e) => AppAnnouncement.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return const [];
     }
   }
 }
