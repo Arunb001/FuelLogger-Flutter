@@ -6,6 +6,10 @@
 
 -- ── 1. BUG-01: Single Active Vehicle Constraint & Atomic RPC ──
 
+UPDATE public.vehicles
+SET is_active = false
+WHERE is_active IS NULL;
+
 -- Pre-heal any user with multiple active vehicles (keep newest active row)
 WITH ranked_active AS (
     SELECT id,
@@ -24,7 +28,7 @@ WITH users_without_active AS (
     SELECT user_id
     FROM public.vehicles
     GROUP BY user_id
-    HAVING BOOL_OR(is_active) = false
+    HAVING NOT COALESCE(BOOL_OR(is_active), false)
 ),
 first_vehicle AS (
     SELECT DISTINCT ON (v.user_id) v.id
@@ -106,7 +110,8 @@ ALTER TABLE public.user_entitlements ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can view their own entitlements" ON public.user_entitlements;
 CREATE POLICY "Users can view their own entitlements"
     ON public.user_entitlements FOR SELECT
-    USING (auth.uid() = user_id);
+    TO authenticated
+    USING ((SELECT auth.uid()) = user_id);
 
 -- Option B Approved: Grandfather ALL existing registered users prior to v3.0.0 rollout
 INSERT INTO public.user_entitlements (user_id, is_pro, is_grandfathered, max_free_vehicles, plan_name)
@@ -154,6 +159,7 @@ ALTER TABLE public.app_config ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public read access for app_config" ON public.app_config;
 CREATE POLICY "Public read access for app_config"
     ON public.app_config FOR SELECT
+    TO anon, authenticated
     USING (true);
 
 INSERT INTO public.app_config (
@@ -177,3 +183,6 @@ VALUES (
     'https://play.google.com/store/apps/details?id=com.fuellogger.app'
 )
 ON CONFLICT (platform) DO NOTHING;
+
+GRANT SELECT ON public.user_entitlements TO authenticated;
+GRANT SELECT ON public.app_config TO anon, authenticated;
