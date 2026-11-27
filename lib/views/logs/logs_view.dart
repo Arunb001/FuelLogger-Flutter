@@ -3,15 +3,67 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/fuel_log.dart';
+import '../../models/service_log.dart';
 import '../../providers/garage_provider.dart';
 import '../../services/cache_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/custom_snackbar.dart';
+import '../../widgets/metric_tile.dart';
+import '../../widgets/service_editor.dart';
 import '../upload/upload_view.dart';
 
-class LogsView extends StatelessWidget {
-  const LogsView({super.key});
+class LogsView extends StatefulWidget {
+  final ValueNotifier<bool>? serviceModeNotifier;
+
+  const LogsView({super.key, this.serviceModeNotifier});
+
+  @override
+  State<LogsView> createState() => _LogsViewState();
+}
+
+class _LogsViewState extends State<LogsView> {
+  late bool _isServiceMode;
+
+  @override
+  void initState() {
+    super.initState();
+    _isServiceMode = widget.serviceModeNotifier?.value ?? false;
+    widget.serviceModeNotifier?.addListener(_onExternalModeChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant LogsView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.serviceModeNotifier != widget.serviceModeNotifier) {
+      oldWidget.serviceModeNotifier?.removeListener(_onExternalModeChange);
+      _isServiceMode = widget.serviceModeNotifier?.value ?? _isServiceMode;
+      widget.serviceModeNotifier?.addListener(_onExternalModeChange);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.serviceModeNotifier?.removeListener(_onExternalModeChange);
+    super.dispose();
+  }
+
+  void _onExternalModeChange() {
+    final next = widget.serviceModeNotifier?.value ?? false;
+    if (mounted && next != _isServiceMode) {
+      setState(() => _isServiceMode = next);
+    }
+  }
+
+  void _setMode(bool serviceMode) {
+    if (_isServiceMode == serviceMode) return;
+    HapticFeedback.selectionClick();
+    setState(() => _isServiceMode = serviceMode);
+    if (widget.serviceModeNotifier != null &&
+        widget.serviceModeNotifier!.value != serviceMode) {
+      widget.serviceModeNotifier!.value = serviceMode;
+    }
+  }
 
   void _showDeleteDialog(BuildContext context, FuelLog log) {
     final c = context.appColors;
@@ -67,11 +119,16 @@ class LogsView extends StatelessWidget {
     String editFuelType = garage.fuelTypes.contains(log.fuelType)
         ? log.fuelType
         : (garage.fuelTypes.isNotEmpty ? garage.fuelTypes.first : log.fuelType);
+    String? editCardId = garage.fuelCards.any((fc) => fc.id == log.fuelCardId)
+        ? log.fuelCardId
+        : null;
 
     final dateCtrl = TextEditingController(text: editDate);
     final costCtrl = TextEditingController(text: log.fuelCost.toString());
     final litersCtrl = TextEditingController(text: log.litersToFill.toString());
-    final odoText = log.fromOdometer % 1 == 0 ? log.fromOdometer.toInt().toString() : log.fromOdometer.toString();
+    final odoText = log.fromOdometer % 1 == 0
+        ? log.fromOdometer.toInt().toString()
+        : log.fromOdometer.toString();
     final odoCtrl = TextEditingController(text: odoText);
     final stationCtrl = TextEditingController(text: log.stationName ?? '');
     final remarkCtrl = TextEditingController(text: log.remark ?? '');
@@ -137,6 +194,33 @@ class LogsView extends StatelessWidget {
                         onChanged: (val) {
                           if (val != null) setDialogState(() => editFuelType = val);
                         },
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    if (garage.fuelCards.isNotEmpty) ...[
+                      DropdownButtonFormField<String?>(
+                        isExpanded: true,
+                        value: editCardId,
+                        decoration: const InputDecoration(
+                          labelText: 'Fuel Card (Optional)',
+                          prefixIcon: Icon(Icons.credit_card_outlined, size: 18),
+                        ),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('None'),
+                          ),
+                          ...garage.fuelCards.map(
+                            (fc) => DropdownMenuItem<String?>(
+                              value: fc.id,
+                              child: Text(
+                                '${fc.cardName} (${Formatters.currency(fc.remaining)})',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
+                        onChanged: (val) => setDialogState(() => editCardId = val),
                       ),
                       const SizedBox(height: 10),
                     ],
@@ -233,6 +317,7 @@ class LogsView extends StatelessWidget {
                       'from_odometer': newOdo,
                       'station_name': cleanStation.isNotEmpty ? cleanStation : null,
                       'remark': cleanRemark.isNotEmpty ? cleanRemark : null,
+                      'fuel_card_id': editCardId,
                     });
 
                     if (context.mounted) {
@@ -256,7 +341,9 @@ class LogsView extends StatelessWidget {
   /// F4 Option A: Tap card to open full Log Detail Pop-Up (user inputs + Mileage, keeping fuel_consumed/distance hidden)
   void _showLogDetailSheet(BuildContext context, FuelLog log) {
     final c = context.appColors;
+    final garage = context.read<GarageProvider>();
     final fuelColor = AppTheme.hexToColor(CacheService.getFuelColorHex(log.fuelType));
+    final linkedCard = garage.fuelCardById(log.fuelCardId);
     final String mileageText = log.isPartial
         ? 'Partial Fill (Cycle Open)'
         : (log.calculatedMileage > 0 ? Formatters.mileage(log.calculatedMileage) : 'In Tank (Active)');
@@ -321,7 +408,6 @@ class LogsView extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
 
-                  // Mileage Highlight Strip
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
@@ -356,6 +442,8 @@ class LogsView extends StatelessWidget {
                   ),
                   if (log.stationName != null && log.stationName!.isNotEmpty)
                     _DetailRow(label: 'Fuel Station', value: log.stationName!),
+                  if (linkedCard != null)
+                    _DetailRow(label: 'Fuel Card', value: linkedCard.cardName),
                   _DetailRow(label: 'Total Cost', value: Formatters.currency(log.fuelCost, decimals: true)),
                   _DetailRow(label: 'Volume Filled', value: Formatters.liters(log.litersToFill, compact: false)),
                   if (log.costPerLtr > 0)
@@ -430,11 +518,38 @@ class LogsView extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.appColors;
     final garage = context.watch<GarageProvider>();
-    final logs = garage.fuelLogs;
+    final fuelLogs = garage.fuelLogs;
+    final serviceLogs = garage.serviceLogs;
+    final serviceSummary = garage.serviceSummary;
 
     return Scaffold(
       appBar: AppBar(
         title: Text('Logs — ${garage.activeVehicleName}'),
+        actions: [
+          if (_isServiceMode)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilledButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const UploadView(initialIsService: true),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Add'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: c.accentPrimary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  minimumSize: const Size(0, 36),
+                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () => garage.loadGarage(),
@@ -443,233 +558,465 @@ class LogsView extends StatelessWidget {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
-            child: logs.isEmpty
-                ? SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: Container(
-                      height: MediaQuery.sizeOf(context).height * 0.65,
-                      alignment: Alignment.center,
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+                  child: SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment<bool>(
+                        value: false,
+                        icon: Icon(Icons.local_gas_station_rounded, size: 17),
+                        label: Text('Fuel'),
+                      ),
+                      ButtonSegment<bool>(
+                        value: true,
+                        icon: Icon(Icons.build_rounded, size: 17),
+                        label: Text('Service'),
+                      ),
+                    ],
+                    selected: {_isServiceMode},
+                    onSelectionChanged: (sel) => _setMode(sel.first),
+                  ),
+                ),
+                Expanded(
+                  child: _isServiceMode
+                      ? _ServiceLogsTabContent(
+                          garage: garage,
+                          logs: serviceLogs,
+                          summary: serviceSummary,
+                        )
+                      : _buildFuelLogsList(context, garage, fuelLogs, c),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFuelLogsList(
+    BuildContext context,
+    GarageProvider garage,
+    List<FuelLog> logs,
+    AppSemanticColors c,
+  ) {
+    if (logs.isEmpty) {
+      return SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Container(
+          height: MediaQuery.sizeOf(context).height * 0.58,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.receipt_long, size: 60, color: c.textMuted),
+              const SizedBox(height: 16),
+              Text(
+                'No Fill-Up Logs Recorded',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: c.textPrimary),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'No logs recorded for \'${garage.activeVehicleName}\' yet.\nLog your first fill-up to start tracking!',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: c.textSecondary, fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const UploadView()));
+                },
+                icon: const Icon(Icons.local_gas_station, size: 18, color: Colors.white),
+                label: const Text('Log First Fill-Up'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      itemCount: logs.length,
+      itemBuilder: (context, index) {
+        final log = logs[index];
+        final fuelColor = AppTheme.hexToColor(CacheService.getFuelColorHex(log.fuelType));
+        final hasMileage = !log.isPartial && log.calculatedMileage > 0;
+        final String badgeText = log.isPartial
+            ? 'Partial'
+            : (hasMileage ? Formatters.mileage(log.calculatedMileage) : 'In Tank');
+        final Color badgeColor = hasMileage
+            ? c.mileageGreen
+            : (log.isPartial ? c.costAmber : c.textMuted);
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () {
+              HapticFeedback.selectionClick();
+              _showLogDetailSheet(context, log);
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(15),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Entry #${log.runId}',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: c.textPrimary,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (log.isPartial)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: c.costAmber.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'PARTIAL',
+                            style: TextStyle(
+                              color: c.costAmber,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: badgeColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          badgeText,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: badgeColor,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Text(
+                        Formatters.shortDate(log.date),
+                        style: TextStyle(color: c.textSecondary, fontSize: 12),
+                      ),
+                      if (log.stationName != null && log.stationName!.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Icon(Icons.storefront_outlined, size: 12, color: c.textMuted),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            log.stationName!,
+                            style: TextStyle(
+                              color: c.textSecondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  Divider(height: 18, color: c.subtleBorder.withOpacity(0.6)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.receipt_long, size: 60, color: c.textMuted),
-                          const SizedBox(height: 16),
+                          Text('Fuel Cost', style: TextStyle(color: c.textMuted, fontSize: 11)),
+                          const SizedBox(height: 2),
                           Text(
-                            'No Fill-Up Logs Recorded',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: c.textPrimary),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'No logs recorded for \'${garage.activeVehicleName}\' yet.\nLog your first fill-up to start tracking!',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: c.textSecondary, fontSize: 13),
-                          ),
-                          const SizedBox(height: 20),
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => const UploadView()));
-                            },
-                            icon: const Icon(Icons.local_gas_station, size: 18, color: Colors.white),
-                            label: const Text('Log First Fill-Up'),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                            Formatters.currency(log.fuelCost),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              color: c.costAmber,
+                              fontFeatures: const [FontFeature.tabularFigures()],
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  )
-                : ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    itemCount: logs.length,
-                    itemBuilder: (context, index) {
-                      final log = logs[index];
-                      final fuelColor = AppTheme.hexToColor(CacheService.getFuelColorHex(log.fuelType));
-                      final hasMileage = !log.isPartial && log.calculatedMileage > 0;
-                      final String badgeText = log.isPartial
-                          ? 'Partial'
-                          : (hasMileage ? Formatters.mileage(log.calculatedMileage) : 'In Tank');
-                      final Color badgeColor = hasMileage
-                          ? c.mileageGreen
-                          : (log.isPartial ? c.costAmber : c.textMuted);
-
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(18),
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            _showLogDetailSheet(context, log);
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.all(15),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Row 1: Entry #, Date, Station, Mileage Pill
-                                Row(
-                                  children: [
-                                    Text(
-                                      'Entry #${log.runId}',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w800,
-                                        color: c.textPrimary,
-                                        fontFeatures: const [FontFeature.tabularFigures()],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    if (log.isPartial)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: c.costAmber.withOpacity(0.15),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          'PARTIAL',
-                                          style: TextStyle(
-                                            color: c.costAmber,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                      ),
-                                    const Spacer(),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: badgeColor.withOpacity(0.12),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Text(
-                                        badgeText,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                          color: badgeColor,
-                                          fontFeatures: const [FontFeature.tabularFigures()],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  children: [
-                                    Text(
-                                      Formatters.shortDate(log.date),
-                                      style: TextStyle(color: c.textSecondary, fontSize: 12),
-                                    ),
-                                    if (log.stationName != null && log.stationName!.isNotEmpty) ...[
-                                      const SizedBox(width: 8),
-                                      Icon(Icons.storefront_outlined, size: 12, color: c.textMuted),
-                                      const SizedBox(width: 4),
-                                      Flexible(
-                                        child: Text(
-                                          log.stationName!,
-                                          style: TextStyle(
-                                            color: c.textSecondary,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                                Divider(height: 18, color: c.subtleBorder.withOpacity(0.6)),
-
-                                // Row 2: Clean 4-column inputs (Cost, Litres, Odometer, Fuel Type)
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text('Fuel Cost', style: TextStyle(color: c.textMuted, fontSize: 11)),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          Formatters.currency(log.fuelCost),
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 14,
-                                            color: c.costAmber,
-                                            fontFeatures: const [FontFeature.tabularFigures()],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text('Volume', style: TextStyle(color: c.textMuted, fontSize: 11)),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          Formatters.liters(log.litersToFill),
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 14,
-                                            color: c.distanceBlue,
-                                            fontFeatures: const [FontFeature.tabularFigures()],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text('Odometer', style: TextStyle(color: c.textMuted, fontSize: 11)),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          Formatters.odometer(log.fromOdometer),
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 13,
-                                            color: c.textPrimary,
-                                            fontFeatures: const [FontFeature.tabularFigures()],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.end,
-                                      children: [
-                                        Text('Fuel', style: TextStyle(color: c.textMuted, fontSize: 11)),
-                                        const SizedBox(height: 2),
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Container(
-                                              width: 8,
-                                              height: 8,
-                                              decoration: BoxDecoration(shape: BoxShape.circle, color: fuelColor),
-                                            ),
-                                            const SizedBox(width: 5),
-                                            Text(
-                                              log.fuelType,
-                                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: c.textSecondary),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ],
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Volume', style: TextStyle(color: c.textMuted, fontSize: 11)),
+                          const SizedBox(height: 2),
+                          Text(
+                            Formatters.liters(log.litersToFill),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              color: c.distanceBlue,
+                              fontFeatures: const [FontFeature.tabularFigures()],
                             ),
                           ),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Odometer', style: TextStyle(color: c.textMuted, fontSize: 11)),
+                          const SizedBox(height: 2),
+                          Text(
+                            Formatters.odometer(log.fromOdometer),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                              color: c.textPrimary,
+                              fontFeatures: const [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text('Fuel', style: TextStyle(color: c.textMuted, fontSize: 11)),
+                          const SizedBox(height: 2),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(shape: BoxShape.circle, color: fuelColor),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                log.fuelType,
+                                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: c.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ServiceLogsTabContent extends StatelessWidget {
+  final GarageProvider garage;
+  final List<ServiceLog> logs;
+  final ServiceSummary summary;
+
+  const _ServiceLogsTabContent({
+    required this.garage,
+    required this.logs,
+    required this.summary,
+  });
+
+  (String, String?, Color) _nextKmMeta(
+      ServiceSummary s, AppSemanticColors c) {
+    if (s.nextDueKm == null) return ('-- km', null, c.textSecondary);
+    final label = Formatters.km(s.nextDueKm!);
+    final rem = s.remainingKm;
+    if (rem == null) return (label, null, c.mileageGreen);
+    if (rem <= 0) {
+      return (label, 'Overdue ${rem.abs().round()} km', c.accentPrimary);
+    }
+    if (rem <= 500) {
+      return (label, '${rem.round()} km left', c.costAmber);
+    }
+    return (label, '${rem.round()} km left', c.mileageGreen);
+  }
+
+  (String, String?, Color) _nextDateMeta(
+      ServiceSummary s, AppSemanticColors c) {
+    if (s.nextDueDate == null || s.nextDueDate!.isEmpty) {
+      return ('--', null, c.textSecondary);
+    }
+    final label = Formatters.shortDate(s.nextDueDate!);
+    final days = s.remainingDays;
+    if (days == null) return (label, null, c.textPrimary);
+    if (days < 0) {
+      return (label, 'Overdue ${days.abs()}d', c.accentPrimary);
+    }
+    if (days == 0) {
+      return (label, 'Due today', c.costAmber);
+    }
+    if (days <= 7) {
+      return (label, '$days days left', c.costAmber);
+    }
+    return (label, '$days days left', c.textPrimary);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.appColors;
+    final (nextKmLabel, nextKmSub, nextKmColor) = _nextKmMeta(summary, c);
+    final (nextDateLabel, nextDateSub, nextDateColor) = _nextDateMeta(summary, c);
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: MetricTile(
+                label: 'Total Spent',
+                value: Formatters.currency(summary.totalCost),
+                valueColor: c.costAmber,
+                icon: Icons.payments_outlined,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: MetricTile(
+                label: 'Last Service',
+                value: Formatters.currency(summary.recentCost),
+                valueColor: c.distanceBlue,
+                icon: Icons.build_circle_outlined,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: MetricTile(
+                label: 'Next Due km',
+                value: nextKmLabel,
+                subtitle: nextKmSub,
+                valueColor: nextKmColor,
+                icon: Icons.speed_rounded,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: MetricTile(
+                label: 'Next Due Date',
+                value: nextDateLabel,
+                subtitle: nextDateSub,
+                valueColor: nextDateColor,
+                icon: Icons.event_available_outlined,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+
+        Row(
+          children: [
+            Text(
+              'Service History (${logs.length})',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: c.textPrimary,
+              ),
+            ),
+            const Spacer(),
+            if (logs.isNotEmpty)
+              Text(
+                'Tap record for details',
+                style: TextStyle(fontSize: 11.5, color: c.textMuted),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        if (logs.isEmpty)
+          Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+              child: Column(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: c.costAmber.withOpacity(0.14),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.build_outlined, size: 28, color: c.costAmber),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'No service records for ${garage.activeVehicleName}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w700,
+                      color: c.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Log oil changes, periodic services, parts & set next due km or date reminders.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: c.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const UploadView(initialIsService: true),
                         ),
                       );
                     },
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Add First Service Record'),
                   ),
+                ],
+              ),
+            ),
+          )
+        else
+          ...logs.map(
+            (log) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: ServiceLogCard(
+                log: log,
+                onTap: () => showServiceLogDetailModal(context, log),
+              ),
+            ),
           ),
-        ),
-      ),
+        const SizedBox(height: 20),
+      ],
     );
   }
 }

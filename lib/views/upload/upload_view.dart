@@ -7,9 +7,15 @@ import '../../services/cache_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/custom_snackbar.dart';
+import '../../widgets/service_editor.dart';
 
 class UploadView extends StatefulWidget {
-  const UploadView({super.key});
+  final bool initialIsService;
+
+  const UploadView({
+    super.key,
+    this.initialIsService = false,
+  });
 
   @override
   State<UploadView> createState() => _UploadViewState();
@@ -27,7 +33,9 @@ class _UploadViewState extends State<UploadView> {
   final _stationController = TextEditingController();
   final _remarkController = TextEditingController();
 
+  late bool _isServiceMode;
   String _selectedFuelType = 'Standard petrol';
+  String? _selectedFuelCardId;
   String _fillFlag = 'F';
   bool _isUploading = false;
   bool _editingEntryNum = false;
@@ -35,6 +43,7 @@ class _UploadViewState extends State<UploadView> {
   @override
   void initState() {
     super.initState();
+    _isServiceMode = widget.initialIsService;
     final garage = context.read<GarageProvider>();
     _snoController.text = garage.summary.nextSno.toString();
     _dateController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
@@ -144,6 +153,7 @@ class _UploadViewState extends State<UploadView> {
           fuelFillFlag: _fillFlag,
           stationName: station.isNotEmpty ? station : null,
           remark: remark.isNotEmpty ? remark : null,
+          fuelCardId: _selectedFuelCardId,
         );
 
     if (!mounted) return;
@@ -178,18 +188,59 @@ class _UploadViewState extends State<UploadView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Log Fill-Up — ${garage.activeVehicleName}'),
+        title: Text(
+          _isServiceMode
+              ? 'Log Service — ${garage.activeVehicleName}'
+              : 'Log Fill-Up — ${garage.activeVehicleName}',
+        ),
       ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Fuel / Service Toggle (P5)
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment<bool>(
+                      value: false,
+                      icon: Icon(Icons.local_gas_station_rounded, size: 17),
+                      label: Text('Fuel'),
+                    ),
+                    ButtonSegment<bool>(
+                      value: true,
+                      icon: Icon(Icons.build_rounded, size: 17),
+                      label: Text('Service'),
+                    ),
+                  ],
+                  selected: {_isServiceMode},
+                  onSelectionChanged: (sel) {
+                    HapticFeedback.selectionClick();
+                    setState(() => _isServiceMode = sel.first);
+                  },
+                ),
+                const SizedBox(height: 14),
+
+                if (_isServiceMode)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: ServiceFormBody(
+                        onSaved: () {
+                          if (mounted) Navigator.pop(context);
+                        },
+                      ),
+                    ),
+                  )
+                else
+                  Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
                   if (garage.summary.isCycleOpen)
                     Container(
                       margin: const EdgeInsets.only(bottom: 14),
@@ -316,16 +367,64 @@ class _UploadViewState extends State<UploadView> {
                           ],
                           const SizedBox(height: 14),
 
-                          // Date Picker
-                          TextFormField(
-                            controller: _dateController,
-                            readOnly: true,
-                            onTap: _selectDate,
-                            decoration: const InputDecoration(
-                              labelText: 'Fill Date *',
-                              prefixIcon: Icon(Icons.calendar_month_outlined, size: 20),
+                          // Date Picker + Optional Fuel Card Row (P5)
+                          if (garage.fuelCards.isEmpty)
+                            TextFormField(
+                              controller: _dateController,
+                              readOnly: true,
+                              onTap: _selectDate,
+                              decoration: const InputDecoration(
+                                labelText: 'Fill Date *',
+                                prefixIcon: Icon(Icons.calendar_month_outlined, size: 20),
+                              ),
+                            )
+                          else
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _dateController,
+                                    readOnly: true,
+                                    onTap: _selectDate,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Fill Date *',
+                                      prefixIcon: Icon(Icons.calendar_month_outlined, size: 19),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: DropdownButtonFormField<String?>(
+                                    isExpanded: true,
+                                    value: garage.fuelCards.any((fc) => fc.id == _selectedFuelCardId)
+                                        ? _selectedFuelCardId
+                                        : null,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Fuel Card',
+                                      prefixIcon: Icon(Icons.credit_card_outlined, size: 19),
+                                    ),
+                                    items: [
+                                      const DropdownMenuItem<String?>(
+                                        value: null,
+                                        child: Text('None', overflow: TextOverflow.ellipsis),
+                                      ),
+                                      ...garage.fuelCards.map(
+                                        (fc) => DropdownMenuItem<String?>(
+                                          value: fc.id,
+                                          child: Text(
+                                            '${fc.cardName} (${Formatters.currency(fc.remaining)})',
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(fontSize: 13),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    onChanged: (val) => setState(() => _selectedFuelCardId = val),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
                           const SizedBox(height: 14),
 
                           // Fuel Type Dropdown
@@ -602,8 +701,10 @@ class _UploadViewState extends State<UploadView> {
                           ),
                   ),
                   const SizedBox(height: 20),
-                ],
-              ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
           ),
         ),

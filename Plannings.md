@@ -1,6 +1,6 @@
 # Fuel Logger — Master Product & Engineering Plannings
 
-> **Status:** Milestones 1–5 Built on `feat/v3-dev` (DEV APK `3.0.0+24` Verified • Pending Real-Device QA & DEV SQL Migrations)  
+> **Status:** Milestones 1–6 Built on `feat/v3-dev` (DEV APK `3.1.0+25` Verified • Pending DEV SQL Migrations & Real-Device QA)  
 > **Active Repository:** `C:\Users\arunb\PycharmProjects\FuelLogger-Flutter` (`https://github.com/Arunb001/FuelLogger-Flutter.git`)  
 > **Current Production Baseline:** `Version - 2.17.2 (Build 23)` (`main` commit `4f3eedd`)  
 > **Play Store Closed Testing Window:** Started `2026-11-24` (21 opted-in testers) • Target Production Apply Date: `~2026-12-08`  
@@ -98,7 +98,7 @@ Because [`.gitignore`](.gitignore) excludes `*.jks`, `*.keystore`, `key.properti
   - Home dashboard uses 3 vertical launcher cards leaving ~40% dead space below, lacks bottom navigation, charts, recent-fill summary, or service alerts.
   - Unformatted numbers (`3520 km`, `₹15281`), mixed center/left field alignments on Upload, emoji strings (`➕`), and developer-style labels (`S.No / Run # *`, `Upload Fuel Log`).
 - **Implementation Plan (Use Mobbin `redesign-screen` + Flutter responsive skills):**
-  1. **Persistent App Shell (`MainShell`):** Clean Bottom Navigation Bar (`Home`, `Logs`, `Service`, `Insights`) + prominent `+ Log` button/FAB so users navigate in 1 tap instead of bouncing through home launcher cards.
+  1. **Persistent App Shell (`MainShell`):** Clean Bottom Navigation Bar (`Home`, `Insights`, `+ Log`, `Logs`, `Utilities`) + prominent `+ Log` button/FAB so users navigate in 1 tap instead of bouncing through home launcher cards. Service is accessed via **Fuel/Service toggles** on the Log, Insights, and Logs pages — not a separate bottom nav tab.
   2. **Humanized Home Dashboard:**
      - Top bar with subtle branding, **Notification Bell (with unread badge)**, and **Settings** icon.
      - Refined Vehicle Hero Banner (tonal gradient, odometer badge, tap to switch).
@@ -154,8 +154,12 @@ Because [`.gitignore`](.gitignore) excludes `*.jks`, `*.keystore`, `key.properti
 
 ---
 
-### F5: New "Service Logs" Page `[APPROVED]`
-- **Database & Cache (`public.service_logs`):**
+### F5: New "Service Logs" — Merged via Fuel/Service Toggle (No Separate Tab) `[APPROVED — Updated 2026-11-27]`
+- **Change from Original Design:** Service Logs are **no longer a separate bottom nav tab**. Instead, the Log Fill-Up page, Insights page, and Logs page each have a **Fuel / Service toggle** at the top.
+  - `Log Fill-Up Page`: Toggle between Fuel form and Service form
+  - `Insights Page`: Toggle between Fuel insights and Service insights
+  - `Logs Page`: Toggle between Fuel log history and Service log history
+- **Database & Cache (`public.service_logs`):** *(Unchanged)*
   - Columns: `id UUID PK`, `user_id UUID FK`, `vehicle_id UUID FK ON DELETE CASCADE`, `service_date DATE NOT NULL`, `odometer NUMERIC(10,1) NOT NULL`, `service_type TEXT NOT NULL`, `service_center TEXT`, `total_cost NUMERIC(10,2) NOT NULL`, `next_due_km NUMERIC(10,1)`, `next_due_date DATE`, `notes TEXT`, `created_at TIMESTAMPTZ`, `updated_at TIMESTAMPTZ`.
   - RLS policy: `auth.uid() = user_id` + index `(vehicle_id, service_date DESC)`.
   - Offline local caching in `CacheService` (`cached_service_logs_<vehicleId>`).
@@ -204,14 +208,16 @@ Because [`.gitignore`](.gitignore) excludes `*.jks`, `*.keystore`, `key.properti
 
 ---
 
-### F7: 2-Vehicle Free Limit (Enforced Now) & Old-User Grandfathering `[APPROVED]`
-- **Rule Locked:** Free accounts are limited to **2 active/created vehicles** starting from this release.
-- **Grandfathering Rule (Protecting Existing Users Who Already Added 2+ Vehicles):**
-  1. **Never Lock, Hide, or Delete Existing Vehicles:** Any user who already has `>= 3` vehicles in Supabase or local cache retains **100% full access** to view, switch, edit, and log fill-ups/service on all their existing vehicles.
-  2. **Enforcement Point:** Check happens **only when tapping "+ Add New Vehicle"** (`vehicles.length >= 2` and `!isGrandfathered` and `!isPro`).
-  3. **Clean Grandfathering Flag / Date:** Users whose `auth.users.created_at` is prior to the v3 limit rollout (or already have `> 2` vehicles at migration time) are automatically marked `is_grandfathered = true` (or handled via cutoff timestamp in `user_entitlements` / client check), OR shown a clear upgrade notice once Pro launches while keeping existing vehicles unlocked!
-- **Pros & Cons:**
-  - *Grandfathered / Add-Only Gate (Chosen):* **Pros:** Zero betrayal or 1-star backlash from Closed Testing users who already added 3+ vehicles; sets clear free boundary for future `Fuel Logger Pro`. **Cons:** Needs `user_entitlements` (or `created_at` cutoff) + friendly limit dialog when hitting 2 vehicles before Play Billing launches.
+### F7: Unlimited Vehicle Add (Free) `[APPROVED — Updated 2026-11-27]`
+- **Previous Rule:** 2-Vehicle Free Limit with grandfathering. **SUPERSEDED** by user instruction on 2026-11-27.
+- **New Rule:** Vehicle add is **completely free and unlimited** for all users. No limit dialog, no grandfathering logic, no `user_entitlements` table needed.
+- **Implementation:**
+  1. [x] Removed `canAddVehicle` limit check in `GarageProvider` (`canAddVehicle => true`).
+  2. [x] Removed `VehicleLimitDialog` widget and imports.
+  3. [x] Removed quota label (`1/2 free`) from Settings "Add New Vehicle" card.
+  4. [x] Removed `VehicleLimitDialog` guard from `VehicleBanner._showAddVehicleDialog`.
+  5. [x] Removed unused `lib/widgets/vehicle_limit_dialog.dart`, `lib/models/user_entitlement.dart`, and `user_entitlements` client queries (history preserved on git).
+- **Paid Future Note:** If Pro adds vehicle limits later, it will be on a separate `feat/pro-billing` branch; the Free tier stays unlimited for now.
 
 ---
 
@@ -239,6 +245,29 @@ Because [`.gitignore`](.gitignore) excludes `*.jks`, `*.keystore`, `key.properti
      - **DEV Protection:** Skip or show a mockable debug toggle on `AppConfig.isDev` so DEV testing is never locked out accidentally.
 - **Pros & Cons:**
   - *Supabase `app_config` + Play Store Deep Link (+ optional `in_app_update`) (Chosen):* **Pros:** You control exact `min_supported_build` & critical flags instantly in Supabase (works for both Play Store and sideloaded DEV APKs!); supports exact 2-backward-version rule; zero cost. **Cons:** Requires disciplined update of `app_config` row whenever releasing a new Play Store build.
+
+---
+
+### F9: Fuel Cards & Utilities Page (NEW) `[APPROVED — 2026-11-27]`
+- **New Bottom Nav Item:** `Utilities` replaces `Service` in position 5. Currently contains one feature: **Fuel Cards**.
+- **Purpose:** Users track monthly spending limits on physical fuel cards (HPCL, BPCL, etc.), with automatic monthly resets.
+- **Database (`public.fuel_cards`):**
+  - Columns: `id UUID PK`, `user_id UUID FK`, `card_name TEXT NOT NULL`, `card_limit NUMERIC(12,2)`, `limit_used NUMERIC(12,2)`, `is_primary BOOLEAN DEFAULT false`, `reset_day_of_month INT (1–31)`, `last_reset_at TIMESTAMPTZ`, `created_at TIMESTAMPTZ`, `updated_at TIMESTAMPTZ`.
+  - Partial unique index: `idx_one_primary_card_per_user ON fuel_cards(user_id) WHERE is_primary = true` — only one primary card per user.
+  - RLS: `auth.uid() = user_id`.
+  - FK link: `fuel_logs.fuel_card_id UUID REFERENCES fuel_cards(id) ON DELETE SET NULL` — tracks which card was used per fill-up.
+- **Primary Card Selection:** User sets one card as primary in Utilities. Home page "Fuel Card Limit" box shows primary card's remaining balance.
+- **Auto-Reset Logic:**
+  - Each card stores `reset_day_of_month` (1–31). Days 29/30/31 auto-fallback to last day of shorter months.
+  - Track `last_reset_at` timestamp — on app open/refresh, check if `last_reset_at` month is before the current month's reset date → reset `limit_used` to 0.
+  - Client-side check (no pg_cron needed).
+- **Fuel Fill-Up Integration:**
+  - Optional fuel card dropdown on Log Fill-Up page (next to date field).
+  - When selected, `limit_used += fuel_cost` on save.
+  - If editing/deleting a fill-up linked to a card, adjust `limit_used` accordingly.
+- **CRUD:** Add (modal with card name, limit, reset day), Edit (tap card), Delete (swipe/long-press + confirm).
+- **Pros & Cons:**
+  - *Client-Side Reset + FK Link (Chosen):* **Pros:** Zero server cost; works offline; immediate feedback on remaining limit; simple to implement. **Cons:** If user doesn't open app for months, multiple resets happen on first open (but that's correct behavior — limit should reset each missed month).
 
 ---
 
@@ -272,12 +301,13 @@ Because [`.gitignore`](.gitignore) excludes `*.jks`, `*.keystore`, `key.properti
 ### 6.2 Free vs. Paid Feature Separation Matrix
 | Feature Area | **FREE** *(Build Now in DEV)* | **FUTURE PAID — `Fuel Logger Pro`** *(Separate Paid Chat Later)* |
 | :--- | :--- | :--- |
-| **Vehicles** | Up to **2 Vehicles** *(Existing old users with 3+ vehicles grandfathered safely)* | **Unlimited Vehicles** + Family/Fleet Shared Garage |
+| **Vehicles** | **Unlimited Vehicles** (Free for all users) | Family/Fleet Shared Garage |
 | **Fuel & EV Logging** | Unlimited logs, Station & Remarks, Manage Logs Popup, CSV Import/Export | **Receipt / Bill Photo Attachments + OCR Auto-Fill** *(covers Storage/AI costs)* |
 | **Themes & UI** | Human-crafted UI/UX + Light / Dark / System Mode | Extra accent packs / home widgets *(nice-to-have)* |
 | **Service Logs** | Service Logs page + Next due km/date + Home Service Due Banner | **Multi-Part Maintenance Rules + Insurance/PUC/RC Document Vault** |
 | **Notifications** | Welcome, Service Due alerts, basic nudges, DB-scheduled wishes | Advanced custom multi-interval service alerts |
 | **Analytics & Reports** | Core KPIs, per-fuel breakdown, basic trend chart | **Branded PDF Tax / Expense Reports**, Station efficiency/price rankings, Fuel vs. EV savings analyzer, Automated Google Drive/Cloud Backup |
+| **Fuel Cards & Utilities** | Fuel card limit tracking, monthly auto-reset, Utilities page | Advanced multi-card analytics, employer reimbursement exports |
 | **Updates & Ads** | Critical + 2-backward-version update guard • **ZERO Ads** | **ZERO Ads** |
 
 ---
@@ -286,14 +316,16 @@ Because [`.gitignore`](.gitignore) excludes `*.jks`, `*.keystore`, `key.properti
 
 ```mermaid
 flowchart LR
-    S0["Step 0: Backup<br/>(Tag + Keys + SQL)"] --> M1["Milestone 1 (DEV)<br/>is_active Fix + Force Update + 2-Vehicle Limit"]
+    S0["Step 0: Backup<br/>(Tag + Keys + SQL)"] --> M1["Milestone 1 (DEV)<br/>is_active Fix + Force Update + Vehicle Limit"]
     M1 --> M2["Milestone 2 (DEV)<br/>Light/Dark/System Theme + UI/UX Overhaul"]
     M2 --> M3["Milestone 3 (DEV)<br/>Station/Remark + Manage Logs Popup"]
     M3 --> M4["Milestone 4 (DEV)<br/>Service Logs + Phase 1.5 Notifications"]
-    M4 --> QAGate["Full Test Suite + DEV APK QA"]
+    M4 --> M5["Milestone 5 (DEV)<br/>v3.0.0+24 QA Build"]
+    M5 --> M6["Milestone 6 (DEV)<br/>v3.1.0+25: DEV Review<br/>Nav Reorg + Fuel Cards + Fixes"]
+    M6 --> QAGate["Full Test Suite + DEV APK QA"]
     PlayDec8["~Dec 8, 2026:<br/>Apply Play Production (v2.17.2+23)"] --> QAGate
-    QAGate --> ProdV3["Prod v3.0.0 Free Release<br/>(Only After User Approval)"]
-    ProdV3 --> PaidChat["Separate Paid Chat (v3.1.0)<br/>Play Billing + Fuel Logger Pro"]
+    QAGate --> ProdV3["Prod v3.x.0 Free Release<br/>(Only After User Approval)"]
+    ProdV3 --> PaidChat["Separate Paid Chat<br/>Play Billing + Fuel Logger Pro"]
 ```
 
 ### Ordered Development Milestones (DEV Only)
@@ -312,5 +344,17 @@ flowchart LR
    - [x] `NotificationsView` + `NotificationService` (`flutter_local_notifications`, `inexactAllowWhileIdle`) + `Workmanager` 12h sync + Settings notification toggles + `PRIVACY_POLICY.md` update.
 6. **Milestone 5 — Full DEV Verification & Build:** `[DONE on feat/v3-dev • Pending Device QA]`
    - [x] `dart analyze lib test` (`No issues found!`), `flutter test` (`+15: All tests passed!`), DEV APK foreground build (`app-dev-release.apk`, `57.42 MB`), real-device QA by user pending DEV SQL run & optional DEV Google Web Client ID.
-7. **Post-Approval Only — Production (`v3.0.0`) & Separate Paid Chat (`v3.1.0`):** `[PENDING USER APPROVAL]`
+7. **Milestone 6 — DEV Review Changes (`v3.1.0+25`):** `[DONE on feat/v3-dev • Pending DEV SQL Run & Device QA]`
+   - [x] **P1:** Enabled DEV Google Sign-In (`376743404421-m2qcvgn1r17rkefqdl541o7lh8q8fnrn.apps.googleusercontent.com` in `env_dev.dart`, cleaned `LoginView` pending dialog, added `com.fuellogger.app.dev://auth` redirect handling). *(User to add `com.fuellogger.app.dev://**` & `fuellogger://**` redirect URLs and enable Google provider in DEV Supabase Dashboard.)*
+   - [x] **P2:** Home page — tighter top spacing (`top: 4`), reduced `VehicleBanner` glow by >60% (`blurRadius: 16 -> 6`, opacity `0.32 -> 0.12`), added **Fuel Card Limit** + **Service Due** metric boxes, added **Latest Service** card, fixed Latest Fill-Up `'See all'` tab index (`-> 2`).
+   - [x] **P3:** Bottom nav & `NavigationRail` reordered — `Home, Insights, + Log, Logs, Utilities` (removed `Service` tab; fixed narrow-screen bottom bar overflow).
+   - [x] **P4:** Settings — renamed `Appearance` -> `Theme Mode`, removed 2-vehicle limit (unlimited), fixed vehicle rename cache/customization sync, fixed `handle_new_user()` trigger + Data API `GRANT`s in `005_v3_fix_new_user_trigger.sql` (cures DEV HTTP 403 on `vehicles` & `fuel_types`).
+   - [x] **P5:** Log Fill-Up — added `Fuel` / `Service` `SegmentedButton` toggle (`UploadView` + shared `ServiceFormBody`), added optional Fuel Card dropdown next to Date (hidden when user has no cards).
+   - [x] **P6:** Insights — added `Fuel` / `Service` toggle, reordered Fuel boxes (`2B = Total Fuel Volume`, `4A = Best Mileage`, `4B = Lowest Mileage`), added Maintenance Overview KPIs + `Service Spend Trend` chart + Breakdown by Service Type.
+   - [x] **P7:** Logs — added `Fuel` / `Service` toggle, embedded service KPIs & `ServiceLogCard` history, added Fuel Card detail/edit link on fuel logs.
+   - [x] **P8:** New `UtilitiesView` — Fuel Cards feature (`FuelCard` model, `fuel_cards` table + `set_primary_fuel_card` RPC, monthly auto-reset day `1–31` with short-month fallback, fill-up deduction/edit/refund adjustments).
+   - [x] **SQL:** Created `004_v3_fuel_cards.sql` + `005_v3_fix_new_user_trigger.sql` (including explicit `GRANT`s curing DEV 403 errors). *(Pending manual execution of `001`, `003`, `004`, `005` in DEV SQL Editor.)*
+   - [x] **QA:** `dart analyze lib test` (`No issues found!`), `flutter test` (`23/23` tests passing across `milestone1_test.dart`, `milestone2_to_4_test.dart`, `milestone6_test.dart`), foreground DEV APK build (`app-dev-release.apk`, `57.95 MB`), and GitHub push on `feat/v3-dev`.
+   - **Full Specification:** See [`dev_review_plan.md`](../../../.gemini/antigravity/brain/2a38ddad-6bda-483c-8101-61aa3489783a/dev_review_plan.md)
+8. **Post-Approval Only — Production & Separate Paid Chat:** `[PENDING USER APPROVAL]`
    - [ ] Apply PROD Supabase migrations, update Play Console / Privacy Policy if needed, build PROD `.aab` (`--obfuscate --split-debug-info=symbols/`), then hand off Section 6 to the dedicated Paid Chat on `feat/pro-billing`.

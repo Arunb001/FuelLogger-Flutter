@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable / Dart)
-- **Current DEV Version**: `Version - 3.0.0 (Build 24)` (`feat/v3-dev` branch; `main` frozen at `Version - 2.17.2 (Build 23)`)
+- **Current DEV Version**: `Version - 3.1.0 (Build 25)` (`feat/v3-dev` branch; `main` frozen at `Version - 2.17.2 (Build 23)`)
 - **Design System**: Light Theme (`#F5F7FB`) + AMOLED Dark Theme (`#111318`) with `ThemeProvider` (`System` / `Light` / `Dark`) and `AppSemanticColors` `ThemeExtension`
 - **State Management**: `Provider` (`GarageProvider`, `AuthProvider`, `ThemeProvider`)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache + SQL migrations in `supabase_migrations/`
@@ -386,7 +386,7 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
 37. **Milestone 1 — Guardrails, Active-Vehicle Integrity & App Version Policy (`BUG-01`, `F7`, `F8`)**:
     - [x] **Step 0 Baseline Backup**: Tagged `v2.17.2-build23`, created `backup/v2.17.2-pre-v3`, archived production keystore/symbols/AAB locally in `C:\Users\arunb\PycharmProjects\FuelLogger-Backups\v2.17.2-build23\`, and branched `feat/v3-dev`.
     - [x] **`vehicles.is_active` Atomic Switch (`BUG-01`)**: Created `supabase_migrations/001_v3_milestone1.sql` (`set_active_vehicle` RPC + partial unique index + pre-heal) and wired atomic switching + cache reconciliation in `SupabaseService` & `GarageProvider`.
-    - [x] **2-Vehicle Free Tier Limit + Option B Grandfathering (`F7`)**: Added `user_entitlements` table & trigger backfill (`is_grandfathered = true` for pre-v3 accounts), `UserEntitlement` model, add-only vehicle gate in `GarageProvider`, and `VehicleLimitDialog`.
+    - [x] **2-Vehicle Free Tier Limit + Option B Grandfathering (`F7`)**: Added `user_entitlements` table & trigger backfill (`is_grandfathered = true` for pre-v3 accounts), `UserEntitlement` model, add-only vehicle gate in `GarageProvider`, and `VehicleLimitDialog`. *(Superseded by Unlimited Vehicles in Build 25.)*
     - [x] **2-Backward-Version & Critical App Update Check (`F8`)**: Added `app_config` table, `AppUpdateConfig`, `UpdateCheckerService` (N / N-1 / N-2 optional, <=N-3 or `is_critical` blocking), and `UpdateDialog` (includes `"Bypass (DEV Test)"` when `AppConfig.isDev == true`).
 
 38. **Milestone 2 — Light/Dark/System Theme Engine & UI/UX Shell Overhaul (`F1`, `F2`)**:
@@ -406,6 +406,18 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
 41. **Milestone 5 — Verification & DEV Build (`3.0.0+24`)**:
     - [x] **Static Analysis & Tests**: `dart analyze lib test` passed (`No issues found!`) and `flutter test` passed (`+15: All tests passed!` across `test/milestone1_test.dart` and `test/milestone2_to_4_test.dart`).
     - [x] **DEV Release APK**: Built `build/app/outputs/flutter-apk/app-dev-release.apk` (`57.42 MB`) for real-device QA on `com.fuellogger.app.dev`.
+
+### Completed in Version 3.1.0 (Build 25 — DEV Branch `feat/v3-dev` Milestone 6):
+
+42. **Milestone 6 — DEV Review Changes, Navigation Reorg & Fuel Cards (`3.1.0+25`)**:
+    - [x] **DEV Google Sign-In & Auth Redirects (`P1`)**: Configured `AppConfig.googleWebClientId` (`376743404421-m2qcvgn1r17rkefqdl541o7lh8q8fnrn.apps.googleusercontent.com`) in `lib/config/env_dev.dart`, removed the pending OAuth blocker dialog in `LoginView`, and routed DEV email/OAuth redirects via `com.fuellogger.app.dev://auth`.
+    - [x] **Home Dashboard Polish & New Cards (`P2`)**: Reduced top padding (`4px`), reduced `VehicleBanner` shadow glow by >60% (`blurRadius: 16 -> 6`, opacity `0.32 -> 0.12`), added **Fuel Card Limit** and **Service Due** (`MetricTile` with `FittedBox` scaling) tiles, added `_LatestServiceCard`, fixed `_LatestFillCard` `'See all'` target tab (`-> 2` Logs), and guarded `AppBar` title against compact-width overflow.
+    - [x] **Navigation Reorganization (`P3`)**: Reordered `MainShell` bottom bar & `NavigationRail` to `Home`, `Insights`, `+ Log`, `Logs`, `Utilities`, removing the standalone `ServiceLogsView` tab and wrapping nav items in `Expanded` to prevent narrow-phone overflow.
+    - [x] **Settings & Unlimited Garage Sync Fixes (`P4`)**: Renamed `"Appearance"` to `"Theme Mode"`, removed the 2-vehicle free cap (`VehicleLimitDialog`, `UserEntitlement`), fixed `renameActiveVehicle` customization & cache persistence, and diagnosed/resolved missing DEV Postgres Data API table `GRANT`s (`403` errors) + legacy signup trigger defaults via `supabase_migrations/005_v3_fix_new_user_trigger.sql`.
+    - [x] **Merged Fuel / Service Flows (`P5`, `P6`, `P7`)**: Extracted shared `ServiceFormBody`, `ServiceEditorSheet`, and `ServiceLogCard` (`lib/widgets/service_editor.dart`); added `Fuel` / `Service` `SegmentedButton` toggles on `UploadView`, `CalculationsView` (Insights), and `LogsView`. Reordered Fuel Insights tiles (`2B = Total Fuel Volume`, `4A = Best Mileage`, `4B = Lowest Mileage`) and added Maintenance Overview, `Service Spend Trend` chart, and Service Type Breakdown. Added optional Fuel Card selector on Fill-Up form & Edit Log dialog.
+    - [x] **Fuel Cards & Utilities (`P8`)**: Added `FuelCard` model (`lib/models/fuel_card.dart`), `UtilitiesView` (`lib/views/utilities/utilities_view.dart`), `supabase_migrations/004_v3_fuel_cards.sql` (`fuel_cards` table, `set_primary_fuel_card` RPC, `fuel_logs.fuel_card_id` FK), monthly auto-reset (days `1–31` with short-month clamping), and automatic fill-up spend deduction/adjustment/refund in `GarageProvider`. Updated `PRIVACY_POLICY.md` for user-entered fuel card budget labels.
+    - [x] **Verification & DEV Build (`3.1.0+25`)**: `dart analyze lib test` (`No issues found!`), `flutter test` (`+23: All tests passed!` including `test/milestone6_test.dart`), and built `build/app/outputs/flutter-apk/app-dev-release.apk` (`57.95 MB`).
+
 
 
 

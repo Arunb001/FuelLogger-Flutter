@@ -4,8 +4,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../config/env.dart';
 import '../models/vehicle.dart';
 import '../models/fuel_log.dart';
+import '../models/fuel_card.dart';
 import '../models/service_log.dart';
-import '../models/user_entitlement.dart';
 import '../models/app_notification.dart';
 import 'cache_service.dart';
 
@@ -79,20 +79,16 @@ class SupabaseService {
         );
       }
     } catch (e) {
-      // If native sign-in fails (e.g. SHA-1 not yet added in Google Cloud Console),
-      // smoothly fall back to Supabase Web OAuth which now works because fuellogger://
-      // was whitelisted in Supabase Redirect URLs (Option 1).
-      if (!AppConfig.isDev) {
-        try {
-          await client.auth.signInWithOAuth(
-            OAuthProvider.google,
-            redirectTo: 'fuellogger://auth',
-          );
-          return null;
-        } catch (_) {
-          rethrow;
-        }
-      } else {
+      // If native sign-in fails, fall back to Supabase Web OAuth using the flavor redirect URL
+      try {
+        await client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: AppConfig.isDev
+              ? 'com.fuellogger.app.dev://auth'
+              : 'fuellogger://auth',
+        );
+        return null;
+      } catch (_) {
         rethrow;
       }
     }
@@ -102,7 +98,9 @@ class SupabaseService {
   static Future<void> resetPassword(String email) async {
     await client.auth.resetPasswordForEmail(
       email.trim(),
-      redirectTo: 'fuellogger://auth',
+      redirectTo: AppConfig.isDev
+          ? 'com.fuellogger.app.dev://auth'
+          : 'fuellogger://auth',
     );
   }
 
@@ -218,14 +216,24 @@ class SupabaseService {
     // Update in Supabase if online and cloud ID
     if (isAuthenticated && id.isNotEmpty && !id.startsWith('local_')) {
       try {
-        await client.from('vehicles').update({'name': clean}).eq('id', id);
-      } catch (_) {}
+        await client
+            .from('vehicles')
+            .update({
+              'name': clean,
+              'updated_at': DateTime.now().toUtc().toIso8601String(),
+            })
+            .eq('id', id)
+            .eq('user_id', userId);
+      } catch (e) {
+        debugPrint('SupabaseService.renameVehicle error: $e');
+      }
     }
 
-    // Always update in local cache
+    // Always update in local cache by vehicle id
     final cached = CacheService.getCachedVehicles();
-    final idx = cached.indexWhere((v) => v.id == id || v.name == newName);
+    final idx = cached.indexWhere((v) => v.id == id);
     if (idx != -1) {
+      await CacheService.migrateVehicleCustomization(cached[idx].name, clean);
       cached[idx] = cached[idx].copyWith(name: clean);
       await CacheService.saveCachedVehicles(cached);
     }
@@ -260,44 +268,12 @@ class SupabaseService {
       try {
         await client.rpc('set_active_vehicle', params: {'p_vehicle_id': vehicleId});
         return true;
-      } catch (_) {
+      } catch (e) {
+        debugPrint('SupabaseService.setActiveVehicle RPC error: $e');
         return false;
       }
     }
     return true;
-  }
-
-  /// Fetches user entitlement (F7) from Supabase `user_entitlements`, with safe offline/legacy fallback.
-  static Future<UserEntitlement> getUserEntitlement({int existingVehicleCount = 0}) async {
-    final uid = userId;
-    if (isAuthenticated && uid.isNotEmpty) {
-      try {
-        final res = await client
-            .from('user_entitlements')
-            .select()
-            .eq('user_id', uid)
-            .maybeSingle();
-
-        if (res != null) {
-          final ent = UserEntitlement.fromJson(res);
-          await CacheService.saveCachedEntitlement(ent, uid);
-          return ent;
-        }
-      } catch (_) {}
-    }
-
-    final cached = CacheService.getCachedEntitlement(uid);
-    if (cached != null) return cached;
-
-    // Protect existing accounts if entitlement row hasn't synced yet
-    if (existingVehicleCount > 2) {
-      return UserEntitlement(
-        userId: uid,
-        isGrandfathered: true,
-        maxFreeVehicles: 2,
-      );
-    }
-    return UserEntitlement(userId: uid);
   }
 
   // ── Fuel Logs CRUD ──
@@ -357,6 +333,7 @@ class SupabaseService {
       fuelFillFlag: log.fuelFillFlag,
       stationName: log.stationName,
       remark: log.remark,
+      fuelCardId: log.fuelCardId,
       createdAt: DateTime.now(),
     );
 
@@ -390,6 +367,8 @@ class SupabaseService {
         clearStationName: data.containsKey('station_name') && (data['station_name'] == null || data['station_name'].toString().trim().isEmpty),
         remark: data.containsKey('remark') ? (data['remark']?.toString().trim().isNotEmpty == true ? data['remark'].toString().trim() : null) : existing.remark,
         clearRemark: data.containsKey('remark') && (data['remark'] == null || data['remark'].toString().trim().isEmpty),
+        fuelCardId: data.containsKey('fuel_card_id') ? (data['fuel_card_id']?.toString().trim().isNotEmpty == true ? data['fuel_card_id'].toString().trim() : null) : existing.fuelCardId,
+        clearFuelCardId: data.containsKey('fuel_card_id') && (data['fuel_card_id'] == null || data['fuel_card_id'].toString().trim().isEmpty),
       );
       list[idx] = updated;
       await CacheService.saveCachedLogs(vehicleId, list);
@@ -731,6 +710,177 @@ class SupabaseService {
       return true;
     } catch (e) {
       debugPrint('SupabaseService.deleteServiceLog error: $e');
+      return false;
+    }
+  }
+
+  // ── Fuel Cards CRUD (F9) ──
+
+  static Future<List<FuelCard>> getFuelCards() async {
+    final localCached = CacheService.getCachedFuelCards();
+    if (!isAuthenticated || userId.isEmpty) {
+      return localCached;
+    }
+
+    try {
+      final res = await client
+          .from('fuel_cards')
+          .select()
+          .eq('user_id', userId)
+          .order('is_primary', ascending: false)
+          .order('created_at', ascending: true);
+
+      final cloud = (res as List)
+          .map((e) => FuelCard.fromJson(e as Map<String, dynamic>))
+          .toList();
+      await CacheService.saveCachedFuelCards(cloud);
+      return cloud;
+    } catch (e) {
+      debugPrint('SupabaseService.getFuelCards error: $e');
+      return localCached;
+    }
+  }
+
+  static Future<FuelCard?> addFuelCard(FuelCard card) async {
+    if (!isAuthenticated || userId.isEmpty) {
+      final localId = 'card_${DateTime.now().millisecondsSinceEpoch}';
+      final cached = CacheService.getCachedFuelCards();
+      final updated = card.isPrimary
+          ? cached.map((c) => c.copyWith(isPrimary: false)).toList()
+          : List<FuelCard>.from(cached);
+      final localCard = card.copyWith(
+        id: localId,
+        userId: userId,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      updated.add(localCard);
+      await CacheService.saveCachedFuelCards(updated);
+      return localCard;
+    }
+
+    try {
+      final payload = card.toInsertJson();
+      payload['user_id'] = userId;
+      // Insert with is_primary = false first to avoid partial unique index race,
+      // then atomically set primary via RPC if requested.
+      final wantsPrimary = card.isPrimary;
+      payload['is_primary'] = false;
+
+      final res = await client
+          .from('fuel_cards')
+          .insert(payload)
+          .select()
+          .single();
+
+      var created = FuelCard.fromJson(res);
+      if (wantsPrimary && created.id.isNotEmpty) {
+        final ok = await setPrimaryFuelCard(created.id);
+        if (ok) {
+          created = created.copyWith(isPrimary: true);
+        }
+      }
+
+      final fresh = await getFuelCards();
+      if (fresh.isNotEmpty) {
+        return fresh.firstWhere((c) => c.id == created.id, orElse: () => created);
+      }
+      return created;
+    } catch (e) {
+      debugPrint('SupabaseService.addFuelCard error: $e');
+      return null;
+    }
+  }
+
+  static Future<bool> updateFuelCard(String id, Map<String, dynamic> data) async {
+    final cached = CacheService.getCachedFuelCards();
+    final idx = cached.indexWhere((c) => c.id == id);
+
+    void applyCacheUpdate() {
+      if (idx == -1) return;
+      final existing = cached[idx];
+      cached[idx] = existing.copyWith(
+        cardName: data['card_name']?.toString() ?? existing.cardName,
+        cardLimit: data['card_limit'] != null
+            ? (data['card_limit'] as num).toDouble()
+            : existing.cardLimit,
+        limitUsed: data['limit_used'] != null
+            ? (data['limit_used'] as num).toDouble()
+            : existing.limitUsed,
+        resetDayOfMonth: data['reset_day_of_month'] != null
+            ? (data['reset_day_of_month'] as num).toInt().clamp(1, 31)
+            : existing.resetDayOfMonth,
+        lastResetAt: data['last_reset_at'] != null
+            ? (DateTime.tryParse(data['last_reset_at'].toString()) ?? existing.lastResetAt)
+            : existing.lastResetAt,
+        updatedAt: DateTime.now(),
+      );
+    }
+
+    if (!isAuthenticated || userId.isEmpty || id.startsWith('card_')) {
+      applyCacheUpdate();
+      await CacheService.saveCachedFuelCards(cached);
+      return true;
+    }
+
+    try {
+      final payload = Map<String, dynamic>.from(data);
+      payload['updated_at'] = DateTime.now().toUtc().toIso8601String();
+      await client
+          .from('fuel_cards')
+          .update(payload)
+          .eq('id', id)
+          .eq('user_id', userId);
+      applyCacheUpdate();
+      await CacheService.saveCachedFuelCards(cached);
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.updateFuelCard error: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> setPrimaryFuelCard(String cardId) async {
+    if (cardId.isEmpty) return false;
+
+    final cached = CacheService.getCachedFuelCards();
+    if (cached.isNotEmpty) {
+      final updated =
+          cached.map((c) => c.copyWith(isPrimary: c.id == cardId)).toList();
+      await CacheService.saveCachedFuelCards(updated);
+    }
+
+    if (isAuthenticated && userId.isNotEmpty && !cardId.startsWith('card_')) {
+      try {
+        await client.rpc('set_primary_fuel_card', params: {'p_card_id': cardId});
+        return true;
+      } catch (e) {
+        debugPrint('SupabaseService.setPrimaryFuelCard RPC error: $e');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static Future<bool> deleteFuelCard(String id) async {
+    final cached = CacheService.getCachedFuelCards()
+      ..removeWhere((c) => c.id == id);
+
+    if (!isAuthenticated || userId.isEmpty || id.startsWith('card_')) {
+      await CacheService.saveCachedFuelCards(cached);
+      return true;
+    }
+
+    try {
+      await client
+          .from('fuel_cards')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', userId);
+      await CacheService.saveCachedFuelCards(cached);
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.deleteFuelCard error: $e');
       return false;
     }
   }

@@ -18,13 +18,15 @@ class AuthProvider extends ChangeNotifier {
   String get userEmail => _isGuest ? 'guest@fuellogger.app' : (_user?.email ?? 'guest@fuellogger.app');
 
   AuthProvider() {
-    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-      if (data.session != null) {
-        _user = data.session?.user;
-        _isGuest = false;
-        notifyListeners();
-      }
-    });
+    try {
+      Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+        if (data.session != null) {
+          _user = data.session?.user;
+          _isGuest = false;
+          notifyListeners();
+        }
+      });
+    } catch (_) {}
   }
 
   void continueAsGuest() {

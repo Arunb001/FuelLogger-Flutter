@@ -17,25 +17,126 @@ import '../upload/upload_view.dart';
 
 class HomeView extends StatelessWidget {
   final void Function(int tabIndex)? onSwitchTab;
+  final VoidCallback? onOpenServiceLogs;
   final VoidCallback? onLogTap;
   final VoidCallback? onOpenNotifications;
 
   const HomeView({
     super.key,
     this.onSwitchTab,
+    this.onOpenServiceLogs,
     this.onLogTap,
     this.onOpenNotifications,
   });
+
+  (String, String?, Color) _serviceDueMeta(
+    ServiceSummary s,
+    bool noServiceLogs,
+    AppSemanticColors c,
+  ) {
+    final remKm = s.remainingKm;
+    final remDays = s.remainingDays;
+
+    if (s.isOverdue) {
+      final parts = <String>[];
+      if (remKm != null && remKm <= 0) {
+        parts.add('${remKm.abs().round()} km past');
+      }
+      if (remDays != null && remDays < 0) {
+        parts.add('${remDays.abs()}d past');
+      }
+      return (
+        'Overdue',
+        parts.isNotEmpty ? parts.join(' • ') : 'Service required',
+        c.accentPrimary,
+      );
+    }
+
+    if (remKm != null && remDays != null) {
+      final dayLabel = remDays == 0 ? 'Today' : '$remDays days';
+      return (
+        '${remKm.round()} km • $dayLabel',
+        s.nextDueKm != null ? 'Due at ${Formatters.km(s.nextDueKm!)}' : null,
+        s.isDueSoon ? c.costAmber : c.mileageGreen,
+      );
+    }
+
+    if (remKm != null) {
+      return (
+        Formatters.km(remKm.round()),
+        'Due at ${Formatters.km(s.nextDueKm!)}',
+        s.isDueSoon ? c.costAmber : c.mileageGreen,
+      );
+    }
+
+    if (remDays != null) {
+      return (
+        remDays == 0 ? 'Due today' : '$remDays days',
+        s.nextDueDate != null ? 'On ${Formatters.shortDate(s.nextDueDate!)}' : null,
+        s.isDueSoon ? c.costAmber : c.distanceBlue,
+      );
+    }
+
+    if (s.nextDueKm != null ||
+        (s.nextDueDate != null && s.nextDueDate!.isNotEmpty)) {
+      return (
+        s.nextDueKm != null
+            ? Formatters.km(s.nextDueKm!)
+            : Formatters.compactDate(s.nextDueDate!),
+        'Target scheduled',
+        c.distanceBlue,
+      );
+    }
+
+    return (
+      '--',
+      noServiceLogs ? 'No service logged' : 'No due target set',
+      c.textMuted,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = context.appColors;
     final garage = context.watch<GarageProvider>();
     final summary = garage.summary;
+    final serviceSummary = garage.serviceSummary;
     final latestLog = garage.fuelLogs.isNotEmpty ? garage.fuelLogs.first : null;
+    final latestService =
+        garage.serviceLogs.isNotEmpty ? garage.serviceLogs.first : null;
+    final primaryCard = garage.primaryFuelCard;
 
     final avgMileageStr = Formatters.mileage(summary.avgMileage);
     final totalKmStr = Formatters.km(summary.totalDistance);
+
+    final String cardValue;
+    final String cardSub;
+    final Color cardColor;
+    if (primaryCard != null) {
+      cardValue = primaryCard.cardLimit > 0 && primaryCard.remaining <= 0
+          ? '₹0'
+          : Formatters.currency(
+              primaryCard.remaining,
+              decimals: primaryCard.remaining % 1 != 0,
+            );
+      cardSub =
+          '${primaryCard.cardName} • of ${Formatters.currency(primaryCard.cardLimit)}';
+      cardColor = primaryCard.isOverLimit
+          ? c.accentPrimary
+          : (primaryCard.usagePercent >= 0.85 ? c.costAmber : c.mileageGreen);
+    } else {
+      cardValue = '--';
+      cardSub = garage.fuelCards.isEmpty
+          ? 'Add card in Utilities'
+          : 'Set primary in Utilities';
+      cardColor = c.textMuted;
+    }
+
+    final (svcValue, svcSub, svcColor) = _serviceDueMeta(
+      serviceSummary,
+      garage.serviceLogs.isEmpty,
+      c,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -51,7 +152,13 @@ class HomeView extends StatelessWidget {
               child: Icon(Icons.local_gas_station_rounded, color: c.accentPrimary, size: 18),
             ),
             const SizedBox(width: 10),
-            Text(AppConfig.appName),
+            Flexible(
+              child: Text(
+                AppConfig.appName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             if (AppConfig.isDev) ...[
               const SizedBox(width: 8),
               Container(
@@ -115,19 +222,19 @@ class HomeView extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 760),
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const VehicleBanner(),
-                  if (garage.serviceSummary.needsBanner) ...[
+                  if (serviceSummary.needsBanner) ...[
                     const SizedBox(height: 12),
                     _ServiceDueAlertBanner(
-                      summary: garage.serviceSummary,
-                      onTap: () => onSwitchTab?.call(2),
+                      summary: serviceSummary,
+                      onTap: onOpenServiceLogs ?? () => onSwitchTab?.call(2),
                     ),
                   ],
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
                   Row(
                     children: [
@@ -150,6 +257,33 @@ class HomeView extends StatelessWidget {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: MetricTile(
+                          label: 'Fuel Card Limit',
+                          value: cardValue,
+                          subtitle: cardSub,
+                          valueColor: cardColor,
+                          icon: Icons.credit_card_rounded,
+                          onTap: () => onSwitchTab?.call(3),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: MetricTile(
+                          label: 'Service Due',
+                          value: svcValue,
+                          subtitle: svcSub,
+                          valueColor: svcColor,
+                          icon: Icons.build_circle_outlined,
+                          onTap: onOpenServiceLogs ?? () => onSwitchTab?.call(2),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 14),
 
                   MileageTrendCard(
@@ -162,7 +296,7 @@ class HomeView extends StatelessWidget {
 
                   _LatestFillCard(
                     latestLog: latestLog,
-                    onViewAll: () => onSwitchTab?.call(1),
+                    onViewAll: () => onSwitchTab?.call(2),
                     onLogFirst: onLogTap ??
                         () {
                           Navigator.push(
@@ -171,7 +305,21 @@ class HomeView extends StatelessWidget {
                           );
                         },
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 14),
+
+                  _LatestServiceCard(
+                    latestService: latestService,
+                    onViewAll: onOpenServiceLogs ?? () => onSwitchTab?.call(2),
+                    onLogFirst: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const UploadView(initialIsService: true),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
                 ],
               ),
             ),
@@ -314,6 +462,185 @@ class _LatestFillCard extends StatelessWidget {
               const Spacer(),
               Text(
                 Formatters.shortDate(log.date),
+                style: TextStyle(fontSize: 12, color: c.textMuted),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LatestServiceCard extends StatelessWidget {
+  final ServiceLog? latestService;
+  final VoidCallback onViewAll;
+  final VoidCallback onLogFirst;
+
+  const _LatestServiceCard({
+    required this.latestService,
+    required this.onViewAll,
+    required this.onLogFirst,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.appColors;
+
+    if (latestService == null) {
+      return Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: c.surfaceCard,
+          borderRadius: BorderRadius.circular(18),
+          border: context.isDarkTheme ? null : Border.all(color: c.subtleBorder),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: c.costAmber.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.build_outlined, color: c.costAmber, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'No service records yet',
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                      color: c.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Track maintenance & next due reminders.',
+                    style: TextStyle(fontSize: 12, color: c.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: onLogFirst,
+              child: const Text('Log', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final svc = latestService!;
+    final nextDueLabel = svc.nextDueKm != null
+        ? Formatters.km(svc.nextDueKm!)
+        : (svc.nextDueDate != null && svc.nextDueDate!.isNotEmpty
+            ? Formatters.compactDate(svc.nextDueDate!)
+            : '--');
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: c.surfaceCard,
+        borderRadius: BorderRadius.circular(18),
+        border: context.isDarkTheme ? null : Border.all(color: c.subtleBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Latest Service',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: c.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: c.costAmber.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    svc.serviceType,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: c.costAmber,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              TextButton(
+                onPressed: onViewAll,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  'See all',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _MiniMetric(
+                label: 'Cost',
+                value: Formatters.currency(svc.totalCost),
+                color: c.costAmber,
+              ),
+              _MiniMetric(
+                label: 'Odometer',
+                value: Formatters.odometer(svc.odometer),
+                color: c.distanceBlue,
+              ),
+              _MiniMetric(
+                label: 'Next Due',
+                value: nextDueLabel,
+                color: c.mileageGreen,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(
+                Icons.store_mall_directory_outlined,
+                size: 13,
+                color: c.textMuted,
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  svc.serviceCenter ?? 'Workshop not specified',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: c.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                Formatters.shortDate(svc.serviceDate),
                 style: TextStyle(fontSize: 12, color: c.textMuted),
               ),
             ],

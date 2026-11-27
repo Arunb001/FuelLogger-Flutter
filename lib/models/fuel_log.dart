@@ -18,6 +18,7 @@ class FuelLog {
   final String fuelFillFlag; // 'F' for Full, 'P' for Partial
   final String? stationName;
   final String? remark;
+  final String? fuelCardId;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -41,6 +42,7 @@ class FuelLog {
     this.fuelFillFlag = 'F',
     this.stationName,
     this.remark,
+    this.fuelCardId,
     this.createdAt,
     this.updatedAt,
   });
@@ -74,6 +76,7 @@ class FuelLog {
       fuelFillFlag: json['fuel_fill_flag']?.toString() ?? 'F',
       stationName: _cleanOptionalText(json['station_name']),
       remark: _cleanOptionalText(json['remark']),
+      fuelCardId: _cleanOptionalText(json['fuel_card_id']),
       createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at']) : null,
       updatedAt: json['updated_at'] != null ? DateTime.tryParse(json['updated_at']) : null,
     );
@@ -82,6 +85,7 @@ class FuelLog {
   Map<String, dynamic> toJson() {
     final cleanStation = _cleanOptionalText(stationName);
     final cleanRemark = _cleanOptionalText(remark);
+    final cleanCardId = _cleanOptionalText(fuelCardId);
     return {
       if (id.isNotEmpty) 'id': id,
       'user_id': userId,
@@ -102,6 +106,7 @@ class FuelLog {
       'fuel_fill_flag': fuelFillFlag,
       'station_name': cleanStation,
       'remark': cleanRemark,
+      if (cleanCardId != null) 'fuel_card_id': cleanCardId,
     };
   }
 
@@ -125,8 +130,10 @@ class FuelLog {
     String? fuelFillFlag,
     String? stationName,
     String? remark,
+    String? fuelCardId,
     bool clearStationName = false,
     bool clearRemark = false,
+    bool clearFuelCardId = false,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -150,6 +157,7 @@ class FuelLog {
       fuelFillFlag: fuelFillFlag ?? this.fuelFillFlag,
       stationName: clearStationName ? null : (stationName ?? this.stationName),
       remark: clearRemark ? null : (remark ?? this.remark),
+      fuelCardId: clearFuelCardId ? null : (fuelCardId ?? this.fuelCardId),
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

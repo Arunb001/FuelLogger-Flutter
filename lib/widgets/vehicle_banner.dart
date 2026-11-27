@@ -4,7 +4,6 @@ import '../models/vehicle.dart';
 import '../providers/garage_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
-import 'vehicle_limit_dialog.dart';
 
 class VehicleBanner extends StatelessWidget {
   final VoidCallback? onSettingsTap;
@@ -36,9 +35,9 @@ class VehicleBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: gradientColors.first.withOpacity(context.isDarkTheme ? 0.32 : 0.22),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            color: gradientColors.first.withOpacity(context.isDarkTheme ? 0.12 : 0.09),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -111,10 +110,6 @@ class VehicleBanner extends StatelessWidget {
   }
 
   void _showAddVehicleDialog(BuildContext context, GarageProvider garage) {
-    if (!garage.canAddVehicle) {
-      VehicleLimitDialog.show(context, limit: garage.maxFreeVehicles);
-      return;
-    }
     final c = context.appColors;
     final addCtrl = TextEditingController();
     showDialog(

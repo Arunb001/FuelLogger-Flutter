@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/vehicle.dart';
 import '../models/fuel_log.dart';
+import '../models/fuel_card.dart';
 import '../models/service_log.dart';
-import '../models/user_entitlement.dart';
 import '../models/app_update_config.dart';
 import '../models/app_notification.dart';
 import 'supabase_service.dart';
@@ -18,7 +18,7 @@ class CacheService {
   static const String _keyHomeSummary = 'cached_home_summary_';
   static const String _keyFuelTypes = 'cached_fuel_types';
   static const String _keyFuelColors = 'cached_fuel_colors';
-  static const String _keyEntitlement = 'cached_entitlement';
+  static const String _keyFuelCardsPrefix = 'cached_fuel_cards_';
   static const String _keyUpdateConfig = 'cached_app_update_config';
   static const String _keyThemeMode = 'app_theme_mode';
   static const String _keyNotificationsPrefix = 'cached_notifications_';
@@ -43,7 +43,7 @@ class CacheService {
   static SharedPreferences? _prefs;
 
   static Future<void> init() async {
-    _prefs ??= await SharedPreferences.getInstance();
+    _prefs = await SharedPreferences.getInstance();
   }
 
   static String getActiveVehicle({String defaultName = 'My Vehicle'}) {
@@ -103,6 +103,15 @@ class CacheService {
     }
     map[vehicleName] = colorKey;
     await _prefs?.setString(_keyVehicleColors, jsonEncode(map));
+  }
+
+  /// Preserves icon & gradient color selection when a vehicle is renamed.
+  static Future<void> migrateVehicleCustomization(String oldName, String newName) async {
+    if (oldName == newName || newName.trim().isEmpty) return;
+    final icon = getVehicleIcon(oldName);
+    final color = getVehicleColor(oldName);
+    await setVehicleIcon(newName, icon);
+    await setVehicleColor(newName, color);
   }
 
   // ── Cached Vehicles List ──
@@ -224,26 +233,30 @@ class CacheService {
     } catch (_) {}
   }
 
-  // ── Cached User Entitlement (F7) ──
+  // ── Cached Fuel Cards (F9) ──
 
-  static String _entitlementKey([String? userId]) {
-    final uid = userId ?? SupabaseService.userId;
-    return uid.isNotEmpty ? '${_keyEntitlement}_$uid' : _keyEntitlement;
+  static String _fuelCardsKey([String? userId]) {
+    final uid = (userId ?? SupabaseService.userId).trim();
+    return uid.isEmpty ? '${_keyFuelCardsPrefix}guest' : '$_keyFuelCardsPrefix$uid';
   }
 
-  static UserEntitlement? getCachedEntitlement([String? userId]) {
-    final raw = _prefs?.getString(_entitlementKey(userId));
-    if (raw == null || raw.isEmpty) return null;
+  static List<FuelCard> getCachedFuelCards([String? userId]) {
+    final raw = _prefs?.getString(_fuelCardsKey(userId));
+    if (raw == null || raw.isEmpty) return [];
     try {
-      return UserEntitlement.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      final list = jsonDecode(raw) as List;
+      return list
+          .map((e) => FuelCard.fromJson(e as Map<String, dynamic>))
+          .toList();
     } catch (_) {
-      return null;
+      return [];
     }
   }
 
-  static Future<void> saveCachedEntitlement(UserEntitlement entitlement, [String? userId]) async {
+  static Future<void> saveCachedFuelCards(List<FuelCard> cards, [String? userId]) async {
     try {
-      await _prefs?.setString(_entitlementKey(userId), jsonEncode(entitlement.toJson()));
+      final list = cards.map((c) => c.toJson()).toList();
+      await _prefs?.setString(_fuelCardsKey(userId), jsonEncode(list));
     } catch (_) {}
   }
 

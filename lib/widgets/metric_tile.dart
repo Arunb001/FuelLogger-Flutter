@@ -7,6 +7,7 @@ class MetricTile extends StatelessWidget {
   final String? subtitle;
   final Color? valueColor;
   final IconData? icon;
+  final VoidCallback? onTap;
 
   const MetricTile({
     super.key,
@@ -15,6 +16,7 @@ class MetricTile extends StatelessWidget {
     this.subtitle,
     this.valueColor,
     this.icon,
+    this.onTap,
   });
 
   @override
@@ -22,10 +24,10 @@ class MetricTile extends StatelessWidget {
     final c = context.appColors;
     final resolvedValueColor = valueColor ?? c.mileageGreen;
 
-    return Container(
+    final inner = Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: c.surfaceCard,
+        color: onTap != null ? Colors.transparent : c.surfaceCard,
         borderRadius: BorderRadius.circular(18),
         border: context.isDarkTheme
             ? null
@@ -61,17 +63,20 @@ class MetricTile extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Text(
-            value,
-            style: TextStyle(
-              color: resolvedValueColor,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.3,
-              fontFeatures: const [FontFeature.tabularFigures()],
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: TextStyle(
+                color: resolvedValueColor,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+              maxLines: 1,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 3),
@@ -83,6 +88,18 @@ class MetricTile extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+
+    if (onTap == null) return inner;
+
+    return Material(
+      color: c.surfaceCard,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: inner,
       ),
     );
   }

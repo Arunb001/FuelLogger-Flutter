@@ -11,7 +11,6 @@ import '../../models/app_notification.dart';
 import '../../config/version.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_snackbar.dart';
-import '../../widgets/vehicle_limit_dialog.dart';
 import '../../services/cache_service.dart';
 import '../../services/notification_service.dart';
 import '../auth/login_view.dart';
@@ -71,13 +70,6 @@ class _SettingsViewState extends State<SettingsView> {
 
   Future<void> _addNewVehicle() async {
     final garage = context.read<GarageProvider>();
-    if (!garage.canAddVehicle) {
-      if (mounted) {
-        await VehicleLimitDialog.show(context, limit: garage.maxFreeVehicles);
-      }
-      return;
-    }
-
     final name = _addVehicleController.text.trim();
     if (name.isEmpty) return;
 
@@ -360,10 +352,6 @@ class _SettingsViewState extends State<SettingsView> {
     final auth = context.watch<AuthProvider>();
     final themeProv = context.watch<ThemeProvider>();
 
-    final String quotaLabel = garage.entitlement.isUnlimited
-        ? '${garage.vehicles.length} vehicles • Unlimited'
-        : '${garage.vehicles.length} / ${garage.maxFreeVehicles} free';
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings & Garage'),
@@ -387,7 +375,7 @@ class _SettingsViewState extends State<SettingsView> {
                           children: [
                             Icon(Icons.contrast_rounded, color: c.distanceBlue, size: 20),
                             const SizedBox(width: 8),
-                            Text('Appearance', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: c.textPrimary)),
+                            Text('Theme Mode', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: c.textPrimary)),
                           ],
                         ),
                         const SizedBox(height: 6),
@@ -632,17 +620,6 @@ class _SettingsViewState extends State<SettingsView> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text('Add New Vehicle', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: c.textPrimary)),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: c.surfaceElevated,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                quotaLabel,
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c.textSecondary),
-                              ),
                             ),
                           ],
                         ),

@@ -1,43 +1,95 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fuel_logger/models/app_update_config.dart';
-import 'package:fuel_logger/models/user_entitlement.dart';
+import 'package:fuel_logger/models/fuel_card.dart';
 import 'package:fuel_logger/services/update_checker_service.dart';
 
 void main() {
-  group('F7 UserEntitlement & 2-Vehicle Free Cap', () {
-    test('free non-grandfathered account allows up to 2 vehicles only', () {
-      const ent = UserEntitlement(userId: 'u_new', isPro: false, isGrandfathered: false, maxFreeVehicles: 2);
-      expect(ent.isUnlimited, isFalse);
-      expect(ent.canAddVehicle(0), isTrue);
-      expect(ent.canAddVehicle(1), isTrue);
-      expect(ent.canAddVehicle(2), isFalse);
-      expect(ent.canAddVehicle(3), isFalse);
+  group('F9 FuelCard Limits & Monthly Auto-Reset', () {
+    test('computes remaining balance, usage percentage, and over-limit state', () {
+      final card = FuelCard(
+        id: 'c1',
+        userId: 'u1',
+        cardName: 'HPCL Card',
+        cardLimit: 5000,
+        limitUsed: 1800,
+        isPrimary: true,
+        resetDayOfMonth: 15,
+        lastResetAt: DateTime(2026, 11, 15, 9, 0),
+      );
+
+      expect(card.remaining, 3200);
+      expect(card.usagePercent, closeTo(0.36, 0.001));
+      expect(card.isOverLimit, isFalse);
+      expect(card.resetDayOrdinal, '15th');
+
+      final maxed = card.copyWith(limitUsed: 5600);
+      expect(maxed.remaining, 0);
+      expect(maxed.usagePercent, 1.0);
+      expect(maxed.isOverLimit, isTrue);
     });
 
-    test('grandfathered Closed Testing user retains unlimited vehicles (Option B)', () {
-      final ent = UserEntitlement.fromJson({
-        'user_id': 'u_early',
-        'is_pro': false,
-        'is_grandfathered': true,
-        'max_free_vehicles': 2,
-      });
-      expect(ent.isUnlimited, isTrue);
-      expect(ent.canAddVehicle(1), isTrue);
-      expect(ent.canAddVehicle(2), isTrue);
-      expect(ent.canAddVehicle(10), isTrue);
+    test('clamps reset days 29-31 to last day of shorter months (e.g., Feb)', () {
+      final card = FuelCard(
+        id: 'c2',
+        userId: 'u1',
+        cardName: 'BPCL Petro',
+        cardLimit: 3000,
+        limitUsed: 1200,
+        resetDayOfMonth: 31,
+        lastResetAt: DateTime(2026, 1, 31, 10, 0),
+      );
+
+      // Feb 27, 2026 (non-leap year): has not reached Feb 28 yet -> boundary Jan 31
+      expect(
+        card.needsMonthlyReset(DateTime(2026, 2, 27, 20, 0)),
+        isFalse,
+      );
+      // Feb 28, 2026: reached clamped Feb 28 reset day -> reset needed
+      expect(
+        card.needsMonthlyReset(DateTime(2026, 2, 28, 8, 0)),
+        isTrue,
+      );
+      expect(
+        card.nextResetDate(DateTime(2026, 2, 27)),
+        DateTime(2026, 2, 28),
+      );
+      // Leap year Feb 2024: resets on Feb 29, not Feb 28
+      final leapCard = card.copyWith(lastResetAt: DateTime(2024, 1, 31));
+      expect(leapCard.needsMonthlyReset(DateTime(2024, 2, 28)), isFalse);
+      expect(leapCard.needsMonthlyReset(DateTime(2024, 2, 29)), isTrue);
     });
 
-    test('Pro account unlocks unlimited vehicles', () {
-      const ent = UserEntitlement(userId: 'u_pro', isPro: true, isGrandfathered: false);
-      expect(ent.isUnlimited, isTrue);
-      expect(ent.canAddVehicle(5), isTrue);
+    test('triggers reset on exact reset day and after missed months without double resetting', () {
+      final card = FuelCard(
+        id: 'c3',
+        userId: 'u1',
+        cardName: 'Shell',
+        cardLimit: 4000,
+        limitUsed: 2500,
+        resetDayOfMonth: 10,
+        lastResetAt: DateTime(2026, 9, 12, 14, 0),
+      );
+
+      // Before Oct 10 -> no reset yet
+      expect(card.needsMonthlyReset(DateTime(2026, 10, 9)), isFalse);
+      // On Oct 10 -> reset needed
+      expect(card.needsMonthlyReset(DateTime(2026, 10, 10, 0, 1)), isTrue);
+      // Opened months later -> reset needed
+      expect(card.needsMonthlyReset(DateTime(2026, 12, 5)), isTrue);
+
+      // After reset performed on Oct 10 -> does not reset again on Oct 11
+      final alreadyReset = card.copyWith(
+        limitUsed: 500,
+        lastResetAt: DateTime(2026, 10, 10, 9, 30),
+      );
+      expect(alreadyReset.needsMonthlyReset(DateTime(2026, 10, 11)), isFalse);
     });
   });
 
   group('F8 UpdateCheckerService 2-Backward-Version & Critical Rules', () {
     test('allows N, N-1, N-2 and forces N-3 when non-critical', () {
       const cfg = AppUpdateConfig(
-        latestVersion: '3.0.2',
+        latestVersion: '3.1.0',
         latestBuild: 26,
         minSupportedBuild: 24, // Supports 26 (N), 25 (N-1), 24 (N-2)
         isCritical: false,
@@ -53,7 +105,7 @@ void main() {
 
     test('forces immediate update when isCritical is true even if minSupportedBuild is stale', () {
       const cfg = AppUpdateConfig(
-        latestVersion: '3.0.3',
+        latestVersion: '3.1.1',
         latestBuild: 27,
         minSupportedBuild: 25,
         isCritical: true,
@@ -66,7 +118,7 @@ void main() {
 
     test('defaults minSupportedBuild to latestBuild - 2 when omitted/zero', () {
       const cfg = AppUpdateConfig(
-        latestVersion: '3.1.0',
+        latestVersion: '3.2.0',
         latestBuild: 30,
         minSupportedBuild: 0,
         isCritical: false,

@@ -10,8 +10,8 @@ import '../calculations/calculations_view.dart';
 import '../home/home_view.dart';
 import '../logs/logs_view.dart';
 import '../notifications/notifications_view.dart';
-import '../service/service_logs_view.dart';
 import '../upload/upload_view.dart';
+import '../utilities/utilities_view.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -22,6 +22,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  final ValueNotifier<bool> _logsServiceModeNotifier = ValueNotifier<bool>(false);
   StreamSubscription<String?>? _notifSub;
 
   @override
@@ -45,6 +46,7 @@ class _MainShellState extends State<MainShell> {
   @override
   void dispose() {
     _notifSub?.cancel();
+    _logsServiceModeNotifier.dispose();
     super.dispose();
   }
 
@@ -52,15 +54,18 @@ class _MainShellState extends State<MainShell> {
     if (!mounted || payload == null) return;
     switch (payload) {
       case 'service':
-        _selectTab(2);
+        _openLogsTab(serviceMode: true);
         break;
       case 'upload':
         _openLogFillUp();
         break;
       case 'logs':
-        _selectTab(1);
+        _openLogsTab(serviceMode: false);
         break;
       case 'insights':
+        _selectTab(1);
+        break;
+      case 'utilities':
         _selectTab(3);
         break;
       case 'notifications':
@@ -70,6 +75,11 @@ class _MainShellState extends State<MainShell> {
         _selectTab(0);
         break;
     }
+  }
+
+  void _openLogsTab({bool serviceMode = false}) {
+    _logsServiceModeNotifier.value = serviceMode;
+    _selectTab(2);
   }
 
   void _openNotifications() {
@@ -88,11 +98,13 @@ class _MainShellState extends State<MainShell> {
     setState(() => _currentIndex = idx);
   }
 
-  Future<void> _openLogFillUp() async {
+  Future<void> _openLogFillUp({bool initialIsService = false}) async {
     HapticFeedback.lightImpact();
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const UploadView()),
+      MaterialPageRoute(
+        builder: (_) => UploadView(initialIsService: initialIsService),
+      ),
     );
   }
 
@@ -102,12 +114,13 @@ class _MainShellState extends State<MainShell> {
     final pages = [
       HomeView(
         onSwitchTab: _selectTab,
-        onLogTap: _openLogFillUp,
+        onOpenServiceLogs: () => _openLogsTab(serviceMode: true),
+        onLogTap: () => _openLogFillUp(initialIsService: false),
         onOpenNotifications: _openNotifications,
       ),
-      const LogsView(),
-      const ServiceLogsView(),
       const CalculationsView(),
+      LogsView(serviceModeNotifier: _logsServiceModeNotifier),
+      const UtilitiesView(),
     ];
 
     return LayoutBuilder(
@@ -129,7 +142,7 @@ class _MainShellState extends State<MainShell> {
                       elevation: 0,
                       backgroundColor: c.accentPrimary,
                       foregroundColor: Colors.white,
-                      onPressed: _openLogFillUp,
+                      onPressed: () => _openLogFillUp(),
                       icon: const Icon(Icons.add_rounded),
                       label: const Text('Log'),
                     ),
@@ -141,19 +154,19 @@ class _MainShellState extends State<MainShell> {
                       label: Text('Home'),
                     ),
                     NavigationRailDestination(
+                      icon: Icon(Icons.insights_outlined),
+                      selectedIcon: Icon(Icons.insights_rounded),
+                      label: Text('Insights'),
+                    ),
+                    NavigationRailDestination(
                       icon: Icon(Icons.receipt_long_outlined),
                       selectedIcon: Icon(Icons.receipt_long_rounded),
                       label: Text('Logs'),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.build_outlined),
-                      selectedIcon: Icon(Icons.build_rounded),
-                      label: Text('Service'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.insights_outlined),
-                      selectedIcon: Icon(Icons.insights_rounded),
-                      label: Text('Insights'),
+                      icon: Icon(Icons.handyman_outlined),
+                      selectedIcon: Icon(Icons.handyman_rounded),
+                      label: Text('Utilities'),
                     ),
                   ],
                 ),
@@ -178,69 +191,79 @@ class _MainShellState extends State<MainShell> {
             child: SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _NavItem(
-                      icon: Icons.home_outlined,
-                      activeIcon: Icons.home_rounded,
-                      label: 'Home',
-                      selected: _currentIndex == 0,
-                      onTap: () => _selectTab(0),
+                    Expanded(
+                      child: _NavItem(
+                        icon: Icons.home_outlined,
+                        activeIcon: Icons.home_rounded,
+                        label: 'Home',
+                        selected: _currentIndex == 0,
+                        onTap: () => _selectTab(0),
+                      ),
                     ),
-                    _NavItem(
-                      icon: Icons.receipt_long_outlined,
-                      activeIcon: Icons.receipt_long_rounded,
-                      label: 'Logs',
-                      selected: _currentIndex == 1,
-                      onTap: () => _selectTab(1),
+                    Expanded(
+                      child: _NavItem(
+                        icon: Icons.insights_outlined,
+                        activeIcon: Icons.insights_rounded,
+                        label: 'Insights',
+                        selected: _currentIndex == 1,
+                        onTap: () => _selectTab(1),
+                      ),
                     ),
-                    GestureDetector(
-                      onTap: _openLogFillUp,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: c.accentPrimary,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: c.accentPrimary.withOpacity(0.28),
-                              blurRadius: 10,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.add_rounded, color: Colors.white, size: 20),
-                            SizedBox(width: 4),
-                            Text(
-                              'Log',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: GestureDetector(
+                        onTap: () => _openLogFillUp(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: c.accentPrimary,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: c.accentPrimary.withOpacity(0.28),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.add_rounded, color: Colors.white, size: 19),
+                              SizedBox(width: 4),
+                              Text(
+                                'Log',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                    _NavItem(
-                      icon: Icons.build_outlined,
-                      activeIcon: Icons.build_rounded,
-                      label: 'Service',
-                      selected: _currentIndex == 2,
-                      onTap: () => _selectTab(2),
+                    Expanded(
+                      child: _NavItem(
+                        icon: Icons.receipt_long_outlined,
+                        activeIcon: Icons.receipt_long_rounded,
+                        label: 'Logs',
+                        selected: _currentIndex == 2,
+                        onTap: () => _openLogsTab(serviceMode: false),
+                      ),
                     ),
-                    _NavItem(
-                      icon: Icons.insights_outlined,
-                      activeIcon: Icons.insights_rounded,
-                      label: 'Insights',
-                      selected: _currentIndex == 3,
-                      onTap: () => _selectTab(3),
+                    Expanded(
+                      child: _NavItem(
+                        icon: Icons.handyman_outlined,
+                        activeIcon: Icons.handyman_rounded,
+                        label: 'Utilities',
+                        selected: _currentIndex == 3,
+                        onTap: () => _selectTab(3),
+                      ),
                     ),
                   ],
                 ),
@@ -277,18 +300,23 @@ class _NavItem extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(selected ? activeIcon : icon, color: color, size: 22),
             const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: color,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                softWrap: false,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: color,
+                ),
               ),
             ),
           ],

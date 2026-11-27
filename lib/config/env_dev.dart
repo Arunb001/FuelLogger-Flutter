@@ -7,6 +7,6 @@ class EnvDev {
     AppConfig.supabaseAnonKey = "sb_publishable_GPeXnnny-P77oi3GRmLdeg_8XNmDiKr";
     AppConfig.isDev = true;
     AppConfig.flavor = "dev";
-    AppConfig.googleWebClientId = null;
+    AppConfig.googleWebClientId = "376743404421-m2qcvgn1r17rkefqdl541o7lh8q8fnrn.apps.googleusercontent.com";
   }
 }

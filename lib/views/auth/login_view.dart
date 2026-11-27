@@ -67,53 +67,6 @@ class _LoginViewState extends State<LoginView> {
   }
 
   Future<void> _handleGoogleSignIn() async {
-    final c = context.appColors;
-    if (AppConfig.isDev && (AppConfig.googleWebClientId == null || AppConfig.googleWebClientId!.isEmpty)) {
-      final proceed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: c.surfaceCard,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: Row(
-            children: [
-              Icon(Icons.info_outline, color: c.costAmber, size: 24),
-              const SizedBox(width: 8),
-              const Flexible(child: Text('DEV OAuth Setup Pending', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'DEV Web Client ID is not yet set in env_dev.dart.',
-                style: TextStyle(fontSize: 13, height: 1.4),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'For testing on DEV right now, you can use:\n'
-                '• Sign In with Password (or create an account)\n'
-                '• Continue as Guest (Offline Mode)',
-                style: TextStyle(fontSize: 13, color: c.textSecondary, height: 1.4),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Use Password / Guest', style: TextStyle(color: c.textSecondary)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text('Try Anyway', style: TextStyle(color: c.costAmber)),
-            ),
-          ],
-        ),
-      );
-
-      if (proceed != true) return;
-    }
-
     final auth = context.read<AuthProvider>();
     final success = await auth.signInWithGoogle();
 
