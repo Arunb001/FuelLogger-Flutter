@@ -122,9 +122,7 @@ class HomeView extends StatelessWidget {
             );
       cardSub =
           '${primaryCard.cardName} • of ${Formatters.currency(primaryCard.cardLimit)}';
-      cardColor = primaryCard.isOverLimit
-          ? c.accentPrimary
-          : (primaryCard.usagePercent >= 0.85 ? c.costAmber : c.mileageGreen);
+      cardColor = primaryCard.balanceStatus.color(c);
     } else {
       cardValue = '--';
       cardSub = garage.fuelCards.isEmpty

@@ -1,3 +1,10 @@
+/// Balance health state for a [FuelCard] based on remaining limit percentage.
+enum FuelCardStatus {
+  healthy,
+  low,
+  critical,
+}
+
 class FuelCard {
   final String id;
   final String userId;
@@ -27,6 +34,18 @@ class FuelCard {
 
   double get usagePercent =>
       cardLimit > 0 ? (limitUsed / cardLimit).clamp(0.0, 1.0) : 0.0;
+
+  double get remainingPercent =>
+      cardLimit > 0 ? (remaining / cardLimit).clamp(0.0, 1.0) : 0.0;
+
+  /// Green at 50%–100% left, Yellow below 50% left, Red below 25% left.
+  FuelCardStatus get balanceStatus {
+    if (cardLimit <= 0) return FuelCardStatus.healthy;
+    final remPct = remainingPercent;
+    if (remPct < 0.25) return FuelCardStatus.critical;
+    if (remPct < 0.50) return FuelCardStatus.low;
+    return FuelCardStatus.healthy;
+  }
 
   bool get isOverLimit => cardLimit > 0 && limitUsed >= cardLimit;
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../models/fuel_card.dart';
 
 @immutable
 class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
@@ -117,6 +118,19 @@ extension AppColorsContext on BuildContext {
       Theme.of(this).extension<AppSemanticColors>() ?? AppSemanticColors.dark;
 
   bool get isDarkTheme => Theme.of(this).brightness == Brightness.dark;
+}
+
+extension FuelCardStatusColor on FuelCardStatus {
+  Color color(AppSemanticColors c) {
+    switch (this) {
+      case FuelCardStatus.healthy:
+        return c.mileageGreen;
+      case FuelCardStatus.low:
+        return c.costAmber;
+      case FuelCardStatus.critical:
+        return c.accentPrimary;
+    }
+  }
 }
 
 class AppTheme {

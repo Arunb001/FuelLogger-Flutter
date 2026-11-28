@@ -194,12 +194,11 @@ class _FuelCardItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.appColors;
-    final progressColor = card.isOverLimit
-        ? c.accentPrimary
-        : (card.usagePercent >= 0.85 ? c.costAmber : c.distanceBlue);
-    final remainColor = card.isOverLimit
-        ? c.accentPrimary
-        : (card.usagePercent >= 0.85 ? c.costAmber : c.mileageGreen);
+    final statusColor = card.balanceStatus.color(c);
+    final progressColor = card.balanceStatus == FuelCardStatus.healthy
+        ? c.distanceBlue
+        : statusColor;
+    final remainColor = statusColor;
     final pct = (card.usagePercent * 100).round();
     final nextResetStr = DateFormat('d MMM').format(card.nextResetDate());
 

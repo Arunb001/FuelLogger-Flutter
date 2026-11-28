@@ -1,6 +1,6 @@
 # Fuel Logger — Master Product & Engineering Plannings
 
-> **Status:** Milestones 1–7 Built on `feat/v3-dev` (`3.2.0+26` • Pending DEV SQL `006` Run & Real-Device QA)  
+> **Status:** Milestones 1–7 Built on `feat/v3-dev` (`3.2.1+27` • DEV SQL `001`–`006` Verified • Pending Real-Device QA)  
 > **Active Repository:** `C:\Users\arunb\PycharmProjects\FuelLogger-Flutter` (`https://github.com/Arunb001/FuelLogger-Flutter.git`)  
 > **Current Production Baseline:** `Version - 2.17.2 (Build 23)` (`main` commit `4f3eedd`)  
 > **Play Store Closed Testing Window:** Started `2026-11-24` (21 opted-in testers) • Target Production Apply Date: `~2026-12-08`  
@@ -399,8 +399,9 @@ flowchart LR
    - [x] **P7.6 Logs Service Parity:** Removed top-right `+ Add` AppBar button and removed KPI tiles/headers from `_ServiceLogsTabContent` in `LogsView` so Service mirrors Fuel 1-to-1.
    - [x] **P7.7 Utilities 2-Option Hub & Fuel Cards Page:** Converted `UtilitiesView` into a 2-option hub (**Fuel Cards** & **Pollution Certificate**); moved Fuel Cards to dedicated `FuelCardsView` without top-right `+ Add`/`Add Card` AppBar button; linked Home's Fuel Card tile directly to `FuelCardsView`.
    - [x] **P7.8 Pollution Certificate (`PUC`) Page (`F10`):** Added per-vehicle `PollutionCertificateView` collecting PUC expiry date + renewal frequency (`3, 6, 12` months), live status countdown, 1-tap renew (`Renewed Today`), Notification alerts (`<=15d` / expired via `pucDue`), and offline cache; updated `PRIVACY_POLICY.md`.
-   - [x] **SQL (`006` Created):** Created [`supabase_migrations/006_v3_service_types_puc.sql`](supabase_migrations/006_v3_service_types_puc.sql) (`service_types` table + `vehicles.puc_expiry_date` & `puc_renewal_months` + GRANTs/RLS + updated `handle_new_user()` + `app_config` `3.2.0+26`). *(Pending manual execution in DEV SQL Editor — MCP confirmation auto-cancelled.)*
-   - [x] **QA:** Bumped version to `3.2.0+26` (`version.dart` + `pubspec.yaml`), updated `instructions.md`, verified `dart analyze lib test` (`No issues found!`) + `flutter test` (`+32: All tests passed!` including `test/milestone7_test.dart`), built foreground DEV APK (`app-dev-release.apk`, `58.2 MB`), and pushed to `origin/feat/v3-dev`.
+   - [x] **SQL (`006` Verified):** Created & verified [`supabase_migrations/006_v3_service_types_puc.sql`](supabase_migrations/006_v3_service_types_puc.sql) on DEV Supabase (`service_types` table + `vehicles.puc_expiry_date` & `puc_renewal_months` + GRANTs/RLS + updated `handle_new_user()` + `app_config` `3.2.0+26`).
+   - [x] **Fuel Card Remaining Balance Color (`3.2.1+27`):** Added `FuelCard.remainingPercent`, `FuelCardStatus` (`healthy` / `low` / `critical`), and `FuelCardStatusColor` so Fuel Card values color **Green** (`50–100%` left), **Yellow** (`<50%` left), and **Red** (`<25%` left) across `HomeView`, `UtilitiesView`, and `FuelCardsView` while keeping Home's Purple card icon.
+   - [x] **QA (`3.2.1+27`):** Bumped version to `3.2.1+27` (`version.dart` + `pubspec.yaml`), updated `instructions.md`, verified `dart analyze lib test` (`No issues found!`) + `flutter test` (`+34: All tests passed!`), built foreground DEV APK (`app-dev-release.apk`, `58.2 MB`, `61009898` bytes), and pushed to `origin/feat/v3-dev`.
    - **Full Specification:** See [`milestone7_review_plan.md`](../../../.gemini/antigravity/brain/2a38ddad-6bda-483c-8101-61aa3489783a/milestone7_review_plan.md)
 9. **Post-Approval Only — Dual-Gate v3 Production Release & Separate Paid Chat:** `[PENDING GATES 1 & 2 + USER APPROVAL]`
    - [ ] **Gate 1:** Google Play approves Production access for `com.fuellogger.app`.

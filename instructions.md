@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable / Dart)
-- **Current DEV Version**: `Fuel Logger - 3.2.0 (26)` (`feat/v3-dev` branch; `main` frozen at `Version - 2.17.2 (Build 23)`)
+- **Current DEV Version**: `Fuel Logger - 3.2.1 (27)` (`feat/v3-dev` branch; `main` frozen at `Version - 2.17.2 (Build 23)`)
 - **Design System**: Light Theme (`#F5F7FB`) + AMOLED Dark Theme (`#111318`) with `ThemeProvider` (`System` / `Light` / `Dark`) and `AppSemanticColors` `ThemeExtension`
 - **State Management**: `Provider` (`GarageProvider`, `AuthProvider`, `ThemeProvider`)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache + SQL migrations in `supabase_migrations/`
@@ -430,6 +430,12 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
     - [x] **Utilities 2-Option Hub & Dedicated Fuel Cards (`P7.7`)**: Turned `UtilitiesView` into a 2-option hub (**Fuel Cards** & **Pollution Certificate**) with live status pills, moved Fuel Cards to `FuelCardsView` without any top-right `+ Add` AppBar button, and linked Home's `Fuel Card Limit` tile directly to `FuelCardsView`.
     - [x] **Pollution Certificate Tracker (`P7.8` / `F10`)**: Extended `Vehicle` (`pucExpiryDate`, `pucRenewalMonths`, clamped month arithmetic, valid/expiringSoon/expired countdown helpers), `SupabaseService`, `GarageProvider`, and `NotificationService` (`AppNotificationType.pucDue` alerts & inbox routing); created `PollutionCertificateView` with `3 / 6 / 12 Months` preset chips and 1-tap `Renewed Today`; created `supabase_migrations/006_v3_service_types_puc.sql`; updated `PRIVACY_POLICY.md`.
     - [x] **Verification & DEV Build (`3.2.0+26`)**: `dart analyze lib test` (`No issues found!`), `flutter test` (`+32: All tests passed!` including `test/milestone7_test.dart`), and built `build/app/outputs/flutter-apk/app-dev-release.apk` (`58.2 MB`, `61009898 bytes`).
+
+### Completed in Version 3.2.1 (Build 27 — DEV Branch `feat/v3-dev`):
+
+44. **Fuel Card Limit Color Thresholds by Remaining Balance (`3.2.1+27`)**:
+    - [x] **Remaining Balance Color Scale (`FuelCard.balanceStatus` & `FuelCardStatusColor`)**: Colored remaining limit values **Green** at `50%–100%` remaining (`c.mileageGreen`), **Yellow** below `50%` remaining (`c.costAmber`), and **Red** below `25%` remaining (`c.accentPrimary`) across `HomeView`, `UtilitiesView`, and `FuelCardsView`, while keeping the Purple icon badge on Home (`#AB47BC` dark / `#8E24AA` light).
+    - [x] **Verification & DEV Build (`3.2.1+27`)**: `dart analyze lib test` (`No issues found!`), `flutter test` (`+34: All tests passed!`), and built `build/app/outputs/flutter-apk/app-dev-release.apk` (`58.2 MB`, `61009898 bytes`).
 
 
 

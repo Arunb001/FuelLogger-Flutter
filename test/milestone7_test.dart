@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fuel_logger/config/env_dev.dart';
 import 'package:fuel_logger/config/version.dart';
+import 'package:fuel_logger/models/fuel_card.dart';
 import 'package:fuel_logger/models/vehicle.dart';
 import 'package:fuel_logger/providers/auth_provider.dart';
 import 'package:fuel_logger/providers/garage_provider.dart';
@@ -52,11 +53,37 @@ void main() {
   });
 
   group('Milestone 7 Unit Tests — Version, Service Types & PUC Logic', () {
-    test('AppVersion formats Fuel Logger - 3.2.0 (26)', () {
-      expect(AppVersion.appVersion, '3.2.0');
-      expect(AppVersion.buildNumber, 26);
-      expect(AppVersion.display, 'Fuel Logger - 3.2.0 (26)');
-      expect(AppVersion.fullDisplay, 'Fuel Logger - 3.2.0 (26)');
+    test('AppVersion formats Fuel Logger - 3.2.1 (27)', () {
+      expect(AppVersion.appVersion, '3.2.1');
+      expect(AppVersion.buildNumber, 27);
+      expect(AppVersion.display, 'Fuel Logger - 3.2.1 (27)');
+      expect(AppVersion.fullDisplay, 'Fuel Logger - 3.2.1 (27)');
+    });
+
+    test('FuelCard balanceStatus changes by remaining limit left (>=50% green, <50% yellow, <25% red)', () {
+      final now = DateTime(2026, 11, 28);
+      FuelCard cardWithUsed(double used) => FuelCard(
+            id: 'c1',
+            userId: 'u1',
+            cardName: 'HPCL',
+            cardLimit: 1000,
+            limitUsed: used,
+            isPrimary: true,
+            lastResetAt: now,
+          );
+
+      // 100% left and 50% left -> Green (healthy)
+      expect(cardWithUsed(0).balanceStatus, FuelCardStatus.healthy);
+      expect(cardWithUsed(500).balanceStatus, FuelCardStatus.healthy);
+
+      // Below 50% down to 25% left -> Yellow (low)
+      expect(cardWithUsed(501).balanceStatus, FuelCardStatus.low);
+      expect(cardWithUsed(750).balanceStatus, FuelCardStatus.low);
+
+      // Below 25% left -> Red (critical)
+      expect(cardWithUsed(751).balanceStatus, FuelCardStatus.critical);
+      expect(cardWithUsed(1000).balanceStatus, FuelCardStatus.critical);
+      expect(cardWithUsed(1200).balanceStatus, FuelCardStatus.critical);
     });
 
     test('Vehicle PUC status thresholds and month clamping work accurately', () {
@@ -143,6 +170,40 @@ void main() {
       expect(svcIcon.color, const Color(0xFFFFD54F));
     });
 
+    testWidgets('HomeView colors Fuel Card Limit value Green (>=50%), Yellow (<50%), and Red (<25%) while keeping icon Purple',
+        (tester) async {
+      Future<void> expectValueColorForUsed(double used, String expectedText, Color expectedColor) async {
+        await CacheService.saveCachedVehicles([
+          Vehicle(id: 'local_v1', userId: '', name: 'Apache', isActive: true),
+        ]);
+        await CacheService.saveCachedFuelCards([
+          FuelCard(
+            id: 'c1',
+            userId: '',
+            cardName: 'HPCL',
+            cardLimit: 1000,
+            limitUsed: used,
+            isPrimary: true,
+            lastResetAt: DateTime.now(),
+          ),
+        ]);
+        final garage = GarageProvider();
+        await tester.pumpWidget(_wrap(garage: garage, child: const HomeView()));
+
+        final valueWidget = tester.widget<Text>(find.text(expectedText));
+        expect(valueWidget.style?.color, expectedColor);
+        final cardIcon = tester.widget<Icon>(find.byIcon(Icons.credit_card_rounded));
+        expect(cardIcon.color, const Color(0xFFAB47BC));
+      }
+
+      // 100% left (₹1,000) -> Green
+      await expectValueColorForUsed(0, '₹1,000', AppSemanticColors.dark.mileageGreen);
+      // 40% left (₹400, below 50%) -> Yellow
+      await expectValueColorForUsed(600, '₹400', AppSemanticColors.dark.costAmber);
+      // 20% left (₹200, below 25%) -> Red
+      await expectValueColorForUsed(800, '₹200', AppSemanticColors.dark.accentPrimary);
+    });
+
     testWidgets('P7.2 MainShell animates bottom nav selections without overflow', (tester) async {
       await CacheService.saveCachedVehicles([
         Vehicle(id: 'local_v1', userId: '', name: 'Bike', isActive: true),
@@ -164,7 +225,7 @@ void main() {
       expect(find.text('Maintenance Overview'), findsNothing);
     });
 
-    testWidgets('P7.3 SettingsView consolidates Vehicle Customization, enforces 8-card order, and shows Fuel Logger - 3.2.0 (26)',
+    testWidgets('P7.3 SettingsView consolidates Vehicle Customization, enforces 8-card order, and shows Fuel Logger - 3.2.1 (27)',
         (tester) async {
       await CacheService.saveCachedVehicles([
         Vehicle(id: 'local_v1', userId: '', name: 'City', isActive: true),
@@ -181,7 +242,7 @@ void main() {
       expect(find.text('Select Vehicle'), findsOneWidget);
       expect(find.text('Add New Vehicle'), findsOneWidget);
       expect(find.text('Delete Current Vehicle'), findsOneWidget);
-      expect(find.text('Fuel Logger - 3.2.0 (26)'), findsOneWidget);
+      expect(find.text('Fuel Logger - 3.2.1 (27)'), findsOneWidget);
 
       final yTheme = tester.getTopLeft(find.text('Theme Mode')).dy;
       final yVehicle = tester.getTopLeft(find.text('Vehicle Customization')).dy;

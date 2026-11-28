@@ -35,9 +35,7 @@ class UtilitiesView extends StatelessWidget {
             );
       cardsStatus =
           '${cards.length} ${cards.length == 1 ? 'card' : 'cards'} • ${primaryCard.cardName} $remStr left';
-      cardsBadgeColor = primaryCard.isOverLimit
-          ? c.accentPrimary
-          : (primaryCard.usagePercent >= 0.85 ? c.costAmber : c.mileageGreen);
+      cardsBadgeColor = primaryCard.balanceStatus.color(c);
     } else {
       cardsStatus = '${cards.length} ${cards.length == 1 ? 'card' : 'cards'} • No primary set';
       cardsBadgeColor = c.distanceBlue;
