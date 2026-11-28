@@ -6,6 +6,7 @@ class MetricTile extends StatelessWidget {
   final String value;
   final String? subtitle;
   final Color? valueColor;
+  final Color? iconColor;
   final IconData? icon;
   final VoidCallback? onTap;
 
@@ -15,6 +16,7 @@ class MetricTile extends StatelessWidget {
     required this.value,
     this.subtitle,
     this.valueColor,
+    this.iconColor,
     this.icon,
     this.onTap,
   });
@@ -23,6 +25,7 @@ class MetricTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.appColors;
     final resolvedValueColor = valueColor ?? c.mileageGreen;
+    final resolvedIconColor = iconColor ?? resolvedValueColor;
 
     final inner = Container(
       padding: const EdgeInsets.all(15),
@@ -55,10 +58,10 @@ class MetricTile extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(5),
                   decoration: BoxDecoration(
-                    color: resolvedValueColor.withOpacity(0.12),
+                    color: resolvedIconColor.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(icon, size: 14, color: resolvedValueColor),
+                  child: Icon(icon, size: 14, color: resolvedIconColor),
                 ),
             ],
           ),

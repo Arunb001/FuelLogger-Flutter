@@ -9,7 +9,6 @@ import '../../services/cache_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/custom_snackbar.dart';
-import '../../widgets/metric_tile.dart';
 import '../../widgets/service_editor.dart';
 import '../upload/upload_view.dart';
 
@@ -520,42 +519,17 @@ class _LogsViewState extends State<LogsView> {
     final garage = context.watch<GarageProvider>();
     final fuelLogs = garage.fuelLogs;
     final serviceLogs = garage.serviceLogs;
-    final serviceSummary = garage.serviceSummary;
 
     return Scaffold(
       appBar: AppBar(
         title: Text('Logs — ${garage.activeVehicleName}'),
-        actions: [
-          if (_isServiceMode)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: FilledButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const UploadView(initialIsService: true),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Add'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: c.accentPrimary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  minimumSize: const Size(0, 36),
-                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-        ],
       ),
       body: RefreshIndicator(
         onRefresh: () => garage.loadGarage(),
         color: c.accentPrimary,
         backgroundColor: c.surfaceCard,
-        child: Center(
+        child: Align(
+          alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
             child: Column(
@@ -585,7 +559,6 @@ class _LogsViewState extends State<LogsView> {
                       ? _ServiceLogsTabContent(
                           garage: garage,
                           logs: serviceLogs,
-                          summary: serviceSummary,
                         )
                       : _buildFuelLogsList(context, garage, fuelLogs, c),
                 ),
@@ -832,191 +805,74 @@ class _LogsViewState extends State<LogsView> {
 class _ServiceLogsTabContent extends StatelessWidget {
   final GarageProvider garage;
   final List<ServiceLog> logs;
-  final ServiceSummary summary;
 
   const _ServiceLogsTabContent({
     required this.garage,
     required this.logs,
-    required this.summary,
   });
-
-  (String, String?, Color) _nextKmMeta(
-      ServiceSummary s, AppSemanticColors c) {
-    if (s.nextDueKm == null) return ('-- km', null, c.textSecondary);
-    final label = Formatters.km(s.nextDueKm!);
-    final rem = s.remainingKm;
-    if (rem == null) return (label, null, c.mileageGreen);
-    if (rem <= 0) {
-      return (label, 'Overdue ${rem.abs().round()} km', c.accentPrimary);
-    }
-    if (rem <= 500) {
-      return (label, '${rem.round()} km left', c.costAmber);
-    }
-    return (label, '${rem.round()} km left', c.mileageGreen);
-  }
-
-  (String, String?, Color) _nextDateMeta(
-      ServiceSummary s, AppSemanticColors c) {
-    if (s.nextDueDate == null || s.nextDueDate!.isEmpty) {
-      return ('--', null, c.textSecondary);
-    }
-    final label = Formatters.shortDate(s.nextDueDate!);
-    final days = s.remainingDays;
-    if (days == null) return (label, null, c.textPrimary);
-    if (days < 0) {
-      return (label, 'Overdue ${days.abs()}d', c.accentPrimary);
-    }
-    if (days == 0) {
-      return (label, 'Due today', c.costAmber);
-    }
-    if (days <= 7) {
-      return (label, '$days days left', c.costAmber);
-    }
-    return (label, '$days days left', c.textPrimary);
-  }
 
   @override
   Widget build(BuildContext context) {
     final c = context.appColors;
-    final (nextKmLabel, nextKmSub, nextKmColor) = _nextKmMeta(summary, c);
-    final (nextDateLabel, nextDateSub, nextDateColor) = _nextDateMeta(summary, c);
 
-    return ListView(
+    if (logs.isEmpty) {
+      return SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Container(
+          height: MediaQuery.sizeOf(context).height * 0.58,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.build_outlined, size: 60, color: c.textMuted),
+              const SizedBox(height: 16),
+              Text(
+                'No Service Logs Recorded',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: c.textPrimary),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'No logs recorded for \'${garage.activeVehicleName}\' yet.\nLog your first service to start tracking!',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: c.textSecondary, fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const UploadView(initialIsService: true),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.build_outlined, size: 18, color: Colors.white),
+                label: const Text('Log First Service'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: MetricTile(
-                label: 'Total Spent',
-                value: Formatters.currency(summary.totalCost),
-                valueColor: c.costAmber,
-                icon: Icons.payments_outlined,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: MetricTile(
-                label: 'Last Service',
-                value: Formatters.currency(summary.recentCost),
-                valueColor: c.distanceBlue,
-                icon: Icons.build_circle_outlined,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: MetricTile(
-                label: 'Next Due km',
-                value: nextKmLabel,
-                subtitle: nextKmSub,
-                valueColor: nextKmColor,
-                icon: Icons.speed_rounded,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: MetricTile(
-                label: 'Next Due Date',
-                value: nextDateLabel,
-                subtitle: nextDateSub,
-                valueColor: nextDateColor,
-                icon: Icons.event_available_outlined,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 18),
-
-        Row(
-          children: [
-            Text(
-              'Service History (${logs.length})',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: c.textPrimary,
-              ),
-            ),
-            const Spacer(),
-            if (logs.isNotEmpty)
-              Text(
-                'Tap record for details',
-                style: TextStyle(fontSize: 11.5, color: c.textMuted),
-              ),
-          ],
-        ),
-        const SizedBox(height: 10),
-
-        if (logs.isEmpty)
-          Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
-              child: Column(
-                children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: c.costAmber.withOpacity(0.14),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.build_outlined, size: 28, color: c.costAmber),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    'No service records for ${garage.activeVehicleName}',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w700,
-                      color: c.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Log oil changes, periodic services, parts & set next due km or date reminders.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: c.textSecondary,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const UploadView(initialIsService: true),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('Add First Service Record'),
-                  ),
-                ],
-              ),
-            ),
-          )
-        else
-          ...logs.map(
-            (log) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: ServiceLogCard(
-                log: log,
-                onTap: () => showServiceLogDetailModal(context, log),
-              ),
-            ),
+      itemCount: logs.length,
+      itemBuilder: (context, index) {
+        final log = logs[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: ServiceLogCard(
+            log: log,
+            onTap: () => showServiceLogDetailModal(context, log),
           ),
-        const SizedBox(height: 20),
-      ],
+        );
+      },
     );
   }
 }

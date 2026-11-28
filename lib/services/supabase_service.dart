@@ -131,11 +131,23 @@ class SupabaseService {
             .select()
             .order('created_at', ascending: true);
 
+        final priorCached = {
+          for (final item in CacheService.getCachedVehicles()) item.id: item,
+        };
         final List<Vehicle> vehicles = (res as List).map((x) {
           final v = Vehicle.fromJson(x);
           final icon = CacheService.getVehicleIcon(v.name);
           final color = CacheService.getVehicleColor(v.name);
-          return v.copyWith(iconKey: icon, colorKey: color);
+          final hasCloudPuc = x is Map && x.containsKey('puc_expiry_date');
+          final prior = priorCached[v.id];
+          return v.copyWith(
+            iconKey: icon,
+            colorKey: color,
+            pucExpiryDate:
+                (!hasCloudPuc && prior != null) ? prior.pucExpiryDate : null,
+            pucRenewalMonths:
+                (!hasCloudPuc && prior != null) ? prior.pucRenewalMonths : null,
+          );
         }).toList();
 
         if (vehicles.isNotEmpty) {
@@ -272,6 +284,47 @@ class SupabaseService {
         debugPrint('SupabaseService.setActiveVehicle RPC error: $e');
         return false;
       }
+    }
+    return true;
+  }
+
+  /// Updates a vehicle's Pollution Certificate (PUC) expiry date and renewal cycle.
+  static Future<bool> updateVehiclePuc(
+    String vehicleId, {
+    String? pucExpiryDate,
+    required int pucRenewalMonths,
+  }) async {
+    if (vehicleId.isEmpty) return false;
+    final cleanExpiry = (pucExpiryDate != null && pucExpiryDate.trim().isNotEmpty)
+        ? pucExpiryDate.trim()
+        : null;
+    final safeMonths = pucRenewalMonths > 0 ? pucRenewalMonths : 6;
+
+    if (isAuthenticated && !vehicleId.startsWith('local_')) {
+      try {
+        await client
+            .from('vehicles')
+            .update({
+              'puc_expiry_date': cleanExpiry,
+              'puc_renewal_months': safeMonths,
+              'updated_at': DateTime.now().toUtc().toIso8601String(),
+            })
+            .eq('id', vehicleId)
+            .eq('user_id', userId);
+      } catch (e) {
+        debugPrint('SupabaseService.updateVehiclePuc error: $e');
+      }
+    }
+
+    final cached = CacheService.getCachedVehicles();
+    final idx = cached.indexWhere((v) => v.id == vehicleId);
+    if (idx != -1) {
+      cached[idx] = cached[idx].copyWith(
+        pucExpiryDate: cleanExpiry,
+        clearPucExpiryDate: cleanExpiry == null,
+        pucRenewalMonths: safeMonths,
+      );
+      await CacheService.saveCachedVehicles(cached);
     }
     return true;
   }
@@ -589,6 +642,72 @@ class SupabaseService {
           .ilike('name', clean);
       return true;
     } catch (_) {
+      return false;
+    }
+  }
+
+  // ── Service Types Cloud CRUD (P7.4) ──
+
+  /// Fetches user-configured service types from Supabase (returns null when offline/unavailable).
+  static Future<List<String>?> getCloudServiceTypes() async {
+    if (!isAuthenticated || userId.isEmpty) return null;
+    try {
+      final res = await client
+          .from('service_types')
+          .select('name')
+          .eq('user_id', userId)
+          .order('created_at', ascending: true);
+
+      final List<String> result = [];
+      for (final item in res as List) {
+        final name = item['name']?.toString().trim() ?? '';
+        if (name.isNotEmpty &&
+            !result.any((existing) => existing.toLowerCase() == name.toLowerCase())) {
+          result.add(name);
+        }
+      }
+      return result;
+    } catch (e) {
+      debugPrint('SupabaseService.getCloudServiceTypes error: $e');
+      return null;
+    }
+  }
+
+  static Future<bool> addCloudServiceType(String name) async {
+    final clean = name.trim();
+    if (clean.isEmpty || !isAuthenticated || userId.isEmpty) return false;
+    try {
+      final existing = await client
+          .from('service_types')
+          .select('id')
+          .eq('user_id', userId)
+          .ilike('name', clean);
+
+      if ((existing as List).isNotEmpty) return true;
+
+      await client.from('service_types').insert({
+        'user_id': userId,
+        'name': clean,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.addCloudServiceType error: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> deleteCloudServiceType(String name) async {
+    final clean = name.trim();
+    if (clean.isEmpty || !isAuthenticated || userId.isEmpty) return false;
+    try {
+      await client
+          .from('service_types')
+          .delete()
+          .eq('user_id', userId)
+          .ilike('name', clean);
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.deleteCloudServiceType error: $e');
       return false;
     }
   }

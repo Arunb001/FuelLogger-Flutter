@@ -14,6 +14,7 @@ import '../../widgets/vehicle_banner.dart';
 import '../notifications/notifications_view.dart';
 import '../settings/settings_view.dart';
 import '../upload/upload_view.dart';
+import '../utilities/fuel_cards_view.dart';
 
 class HomeView extends StatelessWidget {
   final void Function(int tabIndex)? onSwitchTab;
@@ -217,12 +218,13 @@ class HomeView extends StatelessWidget {
         onRefresh: () => garage.loadGarage(),
         color: c.accentPrimary,
         backgroundColor: c.surfaceCard,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -267,8 +269,18 @@ class HomeView extends StatelessWidget {
                           value: cardValue,
                           subtitle: cardSub,
                           valueColor: cardColor,
+                          iconColor: context.isDarkTheme
+                              ? const Color(0xFFAB47BC)
+                              : const Color(0xFF8E24AA),
                           icon: Icons.credit_card_rounded,
-                          onTap: () => onSwitchTab?.call(3),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const FuelCardsView(),
+                              ),
+                            );
+                          },
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -278,6 +290,9 @@ class HomeView extends StatelessWidget {
                           value: svcValue,
                           subtitle: svcSub,
                           valueColor: svcColor,
+                          iconColor: context.isDarkTheme
+                              ? const Color(0xFFFFD54F)
+                              : const Color(0xFFF9A825),
                           icon: Icons.build_circle_outlined,
                           onTap: onOpenServiceLogs ?? () => onSwitchTab?.call(2),
                         ),
@@ -347,31 +362,67 @@ class _LatestFillCard extends StatelessWidget {
 
     if (latestLog == null) {
       return Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: c.surfaceCard,
           borderRadius: BorderRadius.circular(18),
           border: context.isDarkTheme ? null : Border.all(color: c.subtleBorder),
         ),
-        child: Column(
+        child: Row(
           children: [
-            Icon(Icons.local_gas_station_outlined, size: 36, color: c.textMuted),
-            const SizedBox(height: 10),
-            Text(
-              'No Fill-Ups Logged Yet',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: c.accentPrimary.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.local_gas_station_outlined,
+                color: c.accentPrimary,
+                size: 22,
+              ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Tap below to record your first fill-up and start tracking mileage.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: c.textSecondary),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'No fill-ups logged yet',
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                      color: c.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Record a fill-up to track mileage.',
+                    style: TextStyle(fontSize: 12, color: c.textSecondary),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
+            const SizedBox(width: 8),
+            ElevatedButton(
               onPressed: onLogFirst,
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text('Log First Fill-Up'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: c.accentPrimary,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(68, 36),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                'Log',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
             ),
           ],
         ),
@@ -527,9 +578,25 @@ class _LatestServiceCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            TextButton(
+            ElevatedButton(
               onPressed: onLogFirst,
-              child: const Text('Log', style: TextStyle(fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: c.accentPrimary,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(68, 36),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                'Log',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
             ),
           ],
         ),

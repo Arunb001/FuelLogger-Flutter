@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/service_log.dart';
+import '../models/vehicle.dart';
 import '../providers/garage_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
@@ -28,13 +29,13 @@ class _ServiceFormBodyState extends State<ServiceFormBody> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _dateCtrl;
   late final TextEditingController _odoCtrl;
-  late final TextEditingController _typeCtrl;
   late final TextEditingController _centerCtrl;
   late final TextEditingController _costCtrl;
   late final TextEditingController _nextKmCtrl;
   late final TextEditingController _nextDateCtrl;
   late final TextEditingController _notesCtrl;
 
+  late String _selectedServiceType;
   bool _isSaving = false;
 
   @override
@@ -58,9 +59,15 @@ class _ServiceFormBodyState extends State<ServiceFormBody> {
               : ex.odometer.toStringAsFixed(1))
           : defaultOdo,
     );
-    _typeCtrl = TextEditingController(
-      text: ex?.serviceType ?? ServiceLog.commonTypes.first,
-    );
+    if (ex != null && ex.serviceType.trim().isNotEmpty) {
+      _selectedServiceType = ex.serviceType.trim();
+    } else if (garage.serviceTypes.contains(ServiceLog.defaultServiceType)) {
+      _selectedServiceType = ServiceLog.defaultServiceType;
+    } else if (garage.serviceTypes.isNotEmpty) {
+      _selectedServiceType = garage.serviceTypes.first;
+    } else {
+      _selectedServiceType = ServiceLog.defaultServiceType;
+    }
     _centerCtrl = TextEditingController(text: ex?.serviceCenter ?? '');
     _costCtrl = TextEditingController(
       text: ex != null
@@ -80,7 +87,6 @@ class _ServiceFormBodyState extends State<ServiceFormBody> {
   void dispose() {
     _dateCtrl.dispose();
     _odoCtrl.dispose();
-    _typeCtrl.dispose();
     _centerCtrl.dispose();
     _costCtrl.dispose();
     _nextKmCtrl.dispose();
@@ -119,9 +125,166 @@ class _ServiceFormBodyState extends State<ServiceFormBody> {
 
   void _applyMonthIncrement(int months) {
     final base = DateTime.tryParse(_dateCtrl.text.trim()) ?? DateTime.now();
-    final target = DateTime(base.year, base.month + months, base.day);
+    final target = Vehicle.addMonthsClamped(base, months);
     _nextDateCtrl.text = DateFormat('yyyy-MM-dd').format(target);
     setState(() {});
+  }
+
+  Future<void> _showAddServiceTypeDialog() async {
+    final c = context.appColors;
+    final ctrl = TextEditingController();
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: c.surfaceCard,
+        title: const Text('Add Service Type', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'Service Type Name',
+            hintText: 'e.g. Oil Change, Brake Service',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: c.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final clean = ctrl.text.trim();
+              if (clean.isEmpty) return;
+              final garage = context.read<GarageProvider>();
+              garage.addCustomServiceType(clean);
+              final matched = garage.serviceTypes.firstWhere(
+                (t) => t.toLowerCase() == clean.toLowerCase(),
+                orElse: () => clean,
+              );
+              setState(() => _selectedServiceType = matched);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showManageServiceTypesDialog() async {
+    final c = context.appColors;
+    final addCtrl = TextEditingController();
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) {
+          final garage = context.watch<GarageProvider>();
+          final types = garage.serviceTypes;
+          return AlertDialog(
+            backgroundColor: c.surfaceCard,
+            title: const Text('Manage Service Types', style: TextStyle(fontWeight: FontWeight.bold)),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: addCtrl,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: const InputDecoration(
+                              labelText: 'New Service Type',
+                              hintText: 'e.g. Oil Change',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            final name = addCtrl.text.trim();
+                            if (name.isEmpty) return;
+                            if (garage.addCustomServiceType(name)) {
+                              addCtrl.clear();
+                              setState(() => _selectedServiceType = name);
+                              setDialogState(() {});
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          ),
+                          child: const Text('Add'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    ...types.map((t) {
+                      final canDelete = types.length > 1;
+                      return ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          Icons.build_circle_outlined,
+                          size: 18,
+                          color: t == _selectedServiceType ? c.accentPrimary : c.textSecondary,
+                        ),
+                        title: Text(
+                          t,
+                          style: TextStyle(
+                            fontWeight: t == _selectedServiceType
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: c.textPrimary,
+                          ),
+                        ),
+                        trailing: canDelete
+                            ? IconButton(
+                                tooltip: 'Delete $t',
+                                icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 19),
+                                onPressed: () {
+                                  final removed = garage.removeCustomServiceType(t);
+                                  if (removed && mounted) {
+                                    if (!garage.serviceTypes.contains(_selectedServiceType)) {
+                                      setState(() {
+                                        _selectedServiceType = garage.serviceTypes.isNotEmpty
+                                            ? garage.serviceTypes.first
+                                            : ServiceLog.defaultServiceType;
+                                      });
+                                    }
+                                    setDialogState(() {});
+                                  }
+                                },
+                              )
+                            : Icon(Icons.lock_outline, size: 16, color: c.textMuted),
+                        onTap: () {
+                          setState(() => _selectedServiceType = t);
+                          Navigator.pop(dialogCtx);
+                        },
+                      );
+                    }),
+                    if (types.length <= 1)
+                      Text(
+                        'At least 1 service type must remain.',
+                        style: TextStyle(fontSize: 11, color: c.textMuted),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text('Done'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _submit() async {
@@ -132,7 +295,9 @@ class _ServiceFormBodyState extends State<ServiceFormBody> {
     final garage = context.read<GarageProvider>();
     final serviceDate = _dateCtrl.text.trim();
     final odo = double.parse(_odoCtrl.text.trim());
-    final serviceType = _typeCtrl.text.trim();
+    final serviceType = _selectedServiceType.trim().isEmpty
+        ? ServiceLog.defaultServiceType
+        : _selectedServiceType.trim();
     final center =
         _centerCtrl.text.trim().isEmpty ? null : _centerCtrl.text.trim();
     final cost = double.tryParse(_costCtrl.text.trim()) ?? 0.0;
@@ -193,6 +358,15 @@ class _ServiceFormBodyState extends State<ServiceFormBody> {
   @override
   Widget build(BuildContext context) {
     final c = context.appColors;
+    final garage = context.watch<GarageProvider>();
+    final availableTypes = List<String>.from(garage.serviceTypes);
+    if (availableTypes.isEmpty) {
+      availableTypes.add(ServiceLog.defaultServiceType);
+    }
+    if (!availableTypes.contains(_selectedServiceType) &&
+        _selectedServiceType.trim().isNotEmpty) {
+      availableTypes.insert(0, _selectedServiceType.trim());
+    }
 
     return Form(
       key: _formKey,
@@ -200,38 +374,66 @@ class _ServiceFormBodyState extends State<ServiceFormBody> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Service Type',
-            style: TextStyle(fontSize: 12, color: c.textSecondary),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: ServiceLog.commonTypes.map((type) {
-              final selected = _typeCtrl.text.trim() == type;
-              return ChoiceChip(
-                label: Text(type, style: const TextStyle(fontSize: 12)),
-                selected: selected,
-                selectedColor: c.accentPrimary,
-                labelStyle: TextStyle(
-                  color: selected ? Colors.white : c.textPrimary,
-                  fontWeight: FontWeight.w600,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  value: _selectedServiceType,
+                  decoration: const InputDecoration(
+                    labelText: 'Service Type *',
+                    prefixIcon: Icon(Icons.build_outlined, size: 18),
+                  ),
+                  items: [
+                    ...availableTypes.map(
+                      (type) => DropdownMenuItem<String>(
+                        value: type,
+                        child: Text(type, overflow: TextOverflow.ellipsis),
+                      ),
+                    ),
+                    DropdownMenuItem<String>(
+                      value: '__add__',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add_circle_outline, size: 17, color: c.distanceBlue),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Add Service Type...',
+                            style: TextStyle(color: c.distanceBlue),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  onChanged: (val) {
+                    if (val == '__add__') {
+                      _showAddServiceTypeDialog();
+                    } else if (val != null) {
+                      setState(() => _selectedServiceType = val);
+                    }
+                  },
                 ),
-                onSelected: (_) => setState(() => _typeCtrl.text = type),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 12),
-
-          TextFormField(
-            controller: _typeCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Service Name / Work Done *',
-              prefixIcon: Icon(Icons.build_outlined, size: 18),
-            ),
-            validator: (v) =>
-                (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(width: 8),
+              Tooltip(
+                message: 'Manage service types',
+                child: SizedBox(
+                  height: 52,
+                  child: OutlinedButton(
+                    onPressed: _showManageServiceTypesDialog,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Icon(Icons.tune_rounded, size: 20, color: c.textSecondary),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
 

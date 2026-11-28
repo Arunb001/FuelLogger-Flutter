@@ -271,6 +271,8 @@ class _NotificationCard extends StatelessWidget {
         return (Icons.build_circle_outlined, c.costAmber);
       case AppNotificationType.serviceOverdue:
         return (Icons.warning_amber_rounded, c.accentPrimary);
+      case AppNotificationType.pucDue:
+        return (Icons.verified_user_outlined, c.costAmber);
       case AppNotificationType.fillUpNudge:
         return (Icons.local_gas_station_rounded, c.distanceBlue);
       case AppNotificationType.milestone:

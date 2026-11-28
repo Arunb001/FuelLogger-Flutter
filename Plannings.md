@@ -1,6 +1,6 @@
 # Fuel Logger — Master Product & Engineering Plannings
 
-> **Status:** Milestones 1–6 Built on `feat/v3-dev` (DEV APK `3.1.0+25` Verified • Pending DEV SQL Migrations & Real-Device QA)  
+> **Status:** Milestones 1–7 Built on `feat/v3-dev` (`3.2.0+26` • Pending DEV SQL `006` Run & Real-Device QA)  
 > **Active Repository:** `C:\Users\arunb\PycharmProjects\FuelLogger-Flutter` (`https://github.com/Arunb001/FuelLogger-Flutter.git`)  
 > **Current Production Baseline:** `Version - 2.17.2 (Build 23)` (`main` commit `4f3eedd`)  
 > **Play Store Closed Testing Window:** Started `2026-11-24` (21 opted-in testers) • Target Production Apply Date: `~2026-12-08`  
@@ -19,15 +19,24 @@
      - Archive all gitignored last-production outputs & signing secrets locally (`build/app/outputs/bundle/prodRelease/app-prod-release.aab`, `build/app/outputs/flutter-apk/app-prod-release.apk`, `build/app/outputs/mapping/prodRelease/mapping.txt`, `symbols/`, `android/upload-keystore.jks`, `android/key.properties`) — **never commit signing keys to GitHub**.
      - Export current **PROD** (`hjprefmnofrqyjocihto.supabase.co`) and **DEV** (`qjwuajdcyrdlnjplvtsr.supabase.co`) Supabase schemas & data snapshots.
    - Only **after** the last production backup is verified complete may development begin on an isolated feature branch (e.g., `feat/v3-dev`).
-2. **DEV-Only Builds Until Explicit Approval:**
-   - Always build and test **DEV flavor only**:
-     ```bash
-     flutter build apk --flavor dev -t lib/main_dev.dart --release
-     ```
-   - DEV connects strictly to DEV Supabase (`https://qjwuajdcyrdlnjplvtsr.supabase.co`, package `com.fuellogger.app.dev`, name `"Fuel Logger (DEV)"`).
-   - **NEVER** build PROD (`--flavor prod`, `com.fuellogger.app`, `https://hjprefmnofrqyjocihto.supabase.co`) or compile `.aab` bundles unless explicitly told *"proceed with production"*.
-3. **Always Maintain SemVer + Build Number:**
-   - Every code iteration, bugfix, or feature build **MUST** increment and synchronize [`lib/config/version.dart`](lib/config/version.dart) (`appVersion`, `buildNumber`) and [`pubspec.yaml`](pubspec.yaml) (`version: X.Y.Z+N`) before building or pushing.
+2. **Two-Track Branching, DEV-Only Builds & Production Hotfix Isolation:**
+   - **Track A — Current Production Hotfixes ONLY (`main` / `v2.17.2+23`):**
+     - `feat/v3-dev` has diverged significantly from `main` (v3 UI/nav redesign, Fuel Cards, Service Logs, new DB tables/RPCs) and remains under active DEV development & QA. **NEVER** ship or cherry-pick unapproved `feat/v3-dev` changes to Production to fix a current Closed Testing / Production bug.
+     - If Closed Testing or Production users report any issue:
+       1. Cut a dedicated hotfix branch directly from `main` (currently `4f3eedd`, tagged `v2.17.2-build23`), e.g., `hotfix/v2.17.3`.
+       2. Keep the fix strictly scoped to the `v2.17.x` Dart/Android layer and compatible with the **existing PROD Supabase schema** — do **NOT** depend on `supabase_migrations/001..005`.
+       3. **Play Store `versionCode` Collision Guard:** Increment `AppVersion.buildNumber` sequentially from the last uploaded PROD `.aab` (`23 -> 24 -> 25...`). Before `feat/v3-dev` later releases to PROD, verify `v3`'s `buildNumber` is **strictly higher (`>`)** than the highest PROD hotfix `buildNumber`.
+       4. Run tests (`dart analyze lib`, `flutter test`), and build/upload a PROD `.aab` **ONLY when explicitly told** *"proceed with production hotfix"* (or *"proceed with production"*).
+       5. Merge the released hotfix into `main`, create a new tag (`v2.17.x-buildN`), archive `.aab` + `mapping.txt` + `symbols/` into `FuelLogger-Backups\v2.17.x-buildN\`, and port the bugfix forward to `feat/v3-dev` if still applicable.
+   - **Track B — Active DEV Feature Track (`feat/v3-dev`):**
+     - Always build and test **DEV flavor only**:
+       ```bash
+       flutter build apk --flavor dev -t lib/main_dev.dart --release
+       ```
+     - DEV connects strictly to DEV Supabase (`https://qjwuajdcyrdlnjplvtsr.supabase.co`, package `com.fuellogger.app.dev`, name `"Fuel Logger (DEV)"`).
+     - **NEVER** build PROD (`--flavor prod`, `com.fuellogger.app`, `https://hjprefmnofrqyjocihto.supabase.co`) or compile `.aab` bundles from `feat/v3-dev` unless explicitly told *"proceed with production"*.
+3. **Always Maintain SemVer + Build Number (`Fuel Logger - #.#.# (#)`):**
+   - Every code iteration, bugfix, or feature build **MUST** increment and synchronize [`lib/config/version.dart`](lib/config/version.dart) (`appVersion`, `buildNumber`) and [`pubspec.yaml`](pubspec.yaml) (`version: X.Y.Z+N`) before building or pushing (respecting the Track A vs. Track B `versionCode` guard in Rule #2). UI footer strings use `AppVersion.display` formatted as `"Fuel Logger - #.#.# (#)"` (updated from `"Version - #.#.# (Build #)"` in M7).
 4. **Test Everything First $\rightarrow$ Synchronous Foreground Build $\rightarrow$ GitHub Push:**
    - **Step A (Verify First):** Run `dart analyze lib`, unit tests (`flutter test`), and check all affected flows (Light/Dark/System themes, offline cache, Supabase sync) **before** starting an APK build.
    - **Step B (Foreground Build Monitoring):** Never leave an APK/AAB build running unmonitored in the background. Wait and check build progress until compilation completes and confirm success before finishing your turn.
@@ -35,6 +44,13 @@
    - **Step D (Notify User):** Report test results, exact build output path/size, and commit hash only after everything succeeds.
 5. **Backward-Compatible SQL Migrations:**
    - Save every SQL change as an idempotent migration script under `supabase_migrations/` (using `IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`) and verify on DEV Supabase before ever touching PROD.
+6. **Dual-Gate v3 Production Release Policy:**
+   - `feat/v3-dev` (`v3.x`) **MUST NOT** be merged into `main` or released to Google Play Production until **BOTH** gates pass **and** the user gives explicit release approval:
+     - **Gate 1 (Google Play Gate):** Google Play approves Production access for `com.fuellogger.app` (Closed Testing window target `~Dec 8, 2026+`).
+     - **Gate 2 (Complete DEV QA Gate):** All planned v3 features are 100% implemented, all DEV SQL migrations (`001`–`005`+) are tested, and the user signs off after real-device DEV APK QA.
+   - **Pre-PROD Cutover Checklist:** Right before releasing `v3.x` to PROD, take a fresh PROD Supabase backup, confirm `AppVersion.buildNumber > latest PROD hotfix buildNumber`, and apply `supabase_migrations/` idempotently on PROD Supabase.
+7. **Explicit Track Confirmation Rule (For Development Chats):**
+   - Every task/bug report sent to a development chat targets either **`[DEV: feat/v3-dev]`** or **`[PROD HOTFIX: hotfix/v2.17.x from main]`**. If the target track is ambiguous, confirm with the user before editing any files.
 
 ### 1.2 Installed & Recommended Antigravity Skills / Plugins
 - **Dart and Flutter** (`antigravity-plugins-official/plugin/flutter` — *Installed*):
@@ -56,12 +72,12 @@
 | **DEV** | `com.fuellogger.app.dev` | `Fuel Logger (DEV)` | `https://qjwuajdcyrdlnjplvtsr.supabase.co` | **Active target for all v3 development & testing** |
 | **PROD** | `com.fuellogger.app` | `Fuel Logger` | `https://hjprefmnofrqyjocihto.supabase.co` | Frozen at `v2.17.2+23` Closed Testing until Dec 8+ |
 
-### 2.2 Step 0: Last Production Backup Checklist (Execute Before Any DEV Changes Start) `[APPROVED]`
+### 2.2 Step 0: Last Production Backup Checklist (Execute Before Any DEV Changes Start) `[DONE — 2026-11-26]`
 Because [`.gitignore`](.gitignore) excludes `*.jks`, `*.keystore`, `key.properties`, `symbols/`, and `build/`, git alone does **not** back up signing secrets or compiled Play Store bundles:
-- [ ] **1. Git Tag & Freeze Branch:** Create annotated tag `v2.17.2-build23` and branch `backup/v2.17.2-pre-v3` at production commit `4f3eedd`, and push both to `origin`.
-- [ ] **2. Offline Archive of Last Production Release & Secrets:** Copy `android/upload-keystore.jks`, `android/key.properties`, `symbols/`, `build/app/outputs/bundle/prodRelease/app-prod-release.aab`, `build/app/outputs/flutter-apk/app-prod-release.apk`, and `build/app/outputs/mapping/prodRelease/mapping.txt` into a secure local/cloud backup folder (never commit keystores to GitHub!).
-- [ ] **3. Supabase Schema & Data Export:** Export PROD (`hjprefmnofrqyjocihto.supabase.co`) and DEV (`qjwuajdcyrdlnjplvtsr.supabase.co`) table schemas and data snapshots from Supabase Dashboard before executing new SQL migrations.
-- [ ] **4. Feature Branch Isolation:** Create `feat/v3-dev` from `backup/v2.17.2-pre-v3` only after Steps 1–3 succeed, keeping `main` untouched at `v2.17.2+23` during DEV development.
+- [x] **1. Git Tag & Freeze Branch:** Annotated tag `v2.17.2-build23` and branch `backup/v2.17.2-pre-v3` created at production commit `4f3eedd`, pushed to `origin`.
+- [x] **2. Offline Archive of Last Production Release & Secrets:** `android/upload-keystore.jks`, `android/key.properties`, `symbols/`, `app-prod-release.aab`, `app-prod-release.apk`, `mapping.txt`, and project docs archived locally in `C:\Users\arunb\PycharmProjects\FuelLogger-Backups\v2.17.2-build23\`.
+- [x] **3. Supabase Schema & Data Export:** PROD (`prod_v2_17_2_backup.sql`, `.json`, `.csv`) and pre-v3 DEV (`dev_pre_v3_backup.sql`, `.json`, `.csv`) exported on `2026-11-26` into `FuelLogger-Backups\v2.17.2-build23\supabase\`. *(Take a fresh PROD snapshot again right before executing v3 migrations on PROD.)*
+- [x] **4. Feature Branch Isolation:** Created `feat/v3-dev` from the frozen `v2.17.2` baseline while keeping `main` untouched at `4f3eedd` for any isolated `hotfix/v2.17.x` PROD fixes.
 
 ---
 
@@ -154,11 +170,11 @@ Because [`.gitignore`](.gitignore) excludes `*.jks`, `*.keystore`, `key.properti
 
 ---
 
-### F5: New "Service Logs" — Merged via Fuel/Service Toggle (No Separate Tab) `[APPROVED — Updated 2026-11-27]`
+### F5: New "Service Logs" — Merged via Fuel/Service Toggle (No Separate Tab) `[APPROVED — Updated 2026-11-28]`
 - **Change from Original Design:** Service Logs are **no longer a separate bottom nav tab**. Instead, the Log Fill-Up page, Insights page, and Logs page each have a **Fuel / Service toggle** at the top.
-  - `Log Fill-Up Page`: Toggle between Fuel form and Service form
-  - `Insights Page`: Toggle between Fuel insights and Service insights
-  - `Logs Page`: Toggle between Fuel log history and Service log history
+  - `Log Fill-Up Page`: Toggle between Fuel form and Service form. Service Type uses a single-default **`'General Repair'`** dropdown (replacing the 7 preset chips + separate text field) with **Add** & **Delete** options synced via `public.service_types` + `CacheService`.
+  - `Insights Page`: Toggle between Fuel insights and Service insights (`Align.topCenter` so short Service views align cleanly at top).
+  - `Logs Page`: Toggle between Fuel log history and Service log history (no AppBar `+ Add` button, no KPI cards — mirrors the Fuel log list & empty state 1-to-1).
 - **Database & Cache (`public.service_logs`):** *(Unchanged)*
   - Columns: `id UUID PK`, `user_id UUID FK`, `vehicle_id UUID FK ON DELETE CASCADE`, `service_date DATE NOT NULL`, `odometer NUMERIC(10,1) NOT NULL`, `service_type TEXT NOT NULL`, `service_center TEXT`, `total_cost NUMERIC(10,2) NOT NULL`, `next_due_km NUMERIC(10,1)`, `next_due_date DATE`, `notes TEXT`, `created_at TIMESTAMPTZ`, `updated_at TIMESTAMPTZ`.
   - RLS policy: `auth.uid() = user_id` + index `(vehicle_id, service_date DESC)`.
@@ -248,8 +264,10 @@ Because [`.gitignore`](.gitignore) excludes `*.jks`, `*.keystore`, `key.properti
 
 ---
 
-### F9: Fuel Cards & Utilities Page (NEW) `[APPROVED — 2026-11-27]`
-- **New Bottom Nav Item:** `Utilities` replaces `Service` in position 5. Currently contains one feature: **Fuel Cards**.
+### F9: Fuel Cards & Utilities Hub (`Utilities` -> `Fuel Cards` Page) `[APPROVED — Updated 2026-11-28]`
+- **Utilities Hub Layout:** `Utilities` (`UtilitiesView`, position 5 in bottom nav) is a **2-option hub** linking to dedicated full pages:
+  1. **Fuel Cards (`FuelCardsView`)** — full monthly budget card tracker (without the top-right AppBar `+ Add` / `Add Card` button; uses inline/empty-state `Add Fuel Card` button).
+  2. **Pollution Certificate (`PollutionCertificateView`)** — see **F10** below.
 - **Purpose:** Users track monthly spending limits on physical fuel cards (HPCL, BPCL, etc.), with automatic monthly resets.
 - **Database (`public.fuel_cards`):**
   - Columns: `id UUID PK`, `user_id UUID FK`, `card_name TEXT NOT NULL`, `card_limit NUMERIC(12,2)`, `limit_used NUMERIC(12,2)`, `is_primary BOOLEAN DEFAULT false`, `reset_day_of_month INT (1–31)`, `last_reset_at TIMESTAMPTZ`, `created_at TIMESTAMPTZ`, `updated_at TIMESTAMPTZ`.
@@ -268,6 +286,20 @@ Because [`.gitignore`](.gitignore) excludes `*.jks`, `*.keystore`, `key.properti
 - **CRUD:** Add (modal with card name, limit, reset day), Edit (tap card), Delete (swipe/long-press + confirm).
 - **Pros & Cons:**
   - *Client-Side Reset + FK Link (Chosen):* **Pros:** Zero server cost; works offline; immediate feedback on remaining limit; simple to implement. **Cons:** If user doesn't open app for months, multiple resets happen on first open (but that's correct behavior — limit should reset each missed month).
+
+---
+
+### F10: Pollution Certificate (PUC) Tracker `[APPROVED — 2026-11-28]`
+- **Entry Point:** **Utilities Hub $\rightarrow$ Pollution Certificate** (`PollutionCertificateView`).
+- **Scope:** Tracked **per vehicle** (switchable directly on page via vehicle banner/selector).
+- **Inputs Collected:**
+  1. **PUC Expiry Date** (`puc_expiry_date DATE` nullable column on `public.vehicles`)
+  2. **Renewal Frequency** (`puc_renewal_months INT DEFAULT 6` on `public.vehicles` — preset chips for **3, 6, 12 months**)
+- **Features & UX:**
+  - Live status banner showing **Valid** (Green), **Expiring Soon** (Yellow $\le 15$ days), **Expired** (Red), or **Not Set**, with exact day countdown.
+  - 1-tap **"Renewed Today (+N months)"** helper button and Save / Clear controls with offline `CacheService` fallback.
+  - Surfaces expiring/expired PUC reminders via `NotificationService` inbox under existing reminder controls + status badge on the Utilities Hub card.
+- **Database Safety:** Nullable columns added idempotently in `006_v3_service_types_puc.sql` — 100% backwards-compatible with `v2.17.2` on PROD.
 
 ---
 
@@ -307,7 +339,7 @@ Because [`.gitignore`](.gitignore) excludes `*.jks`, `*.keystore`, `key.properti
 | **Service Logs** | Service Logs page + Next due km/date + Home Service Due Banner | **Multi-Part Maintenance Rules + Insurance/PUC/RC Document Vault** |
 | **Notifications** | Welcome, Service Due alerts, basic nudges, DB-scheduled wishes | Advanced custom multi-interval service alerts |
 | **Analytics & Reports** | Core KPIs, per-fuel breakdown, basic trend chart | **Branded PDF Tax / Expense Reports**, Station efficiency/price rankings, Fuel vs. EV savings analyzer, Automated Google Drive/Cloud Backup |
-| **Fuel Cards & Utilities** | Fuel card limit tracking, monthly auto-reset, Utilities page | Advanced multi-card analytics, employer reimbursement exports |
+| **Fuel Cards & Utilities** | Utilities 2-option hub: Fuel Cards tracker (monthly auto-reset) + PUC Expiry Date & Renewal cycle (3/6/12 mo) | Advanced multi-card analytics, employer reimbursement exports, **Scanned PUC/RC/Insurance Document Vault** |
 | **Updates & Ads** | Critical + 2-backward-version update guard • **ZERO Ads** | **ZERO Ads** |
 
 ---
@@ -316,20 +348,22 @@ Because [`.gitignore`](.gitignore) excludes `*.jks`, `*.keystore`, `key.properti
 
 ```mermaid
 flowchart LR
-    S0["Step 0: Backup<br/>(Tag + Keys + SQL)"] --> M1["Milestone 1 (DEV)<br/>is_active Fix + Force Update + Vehicle Limit"]
-    M1 --> M2["Milestone 2 (DEV)<br/>Light/Dark/System Theme + UI/UX Overhaul"]
-    M2 --> M3["Milestone 3 (DEV)<br/>Station/Remark + Manage Logs Popup"]
-    M3 --> M4["Milestone 4 (DEV)<br/>Service Logs + Phase 1.5 Notifications"]
+    S0["Step 0: Backup (Done)<br/>Tag + Keys + DB"] --> M1["Milestone 1 (DEV)<br/>is_active Fix + Force Update"]
+    S0 -.->|"User bug in Closed Test / Prod"| HF["Track A: Hotfix on main<br/>(hotfix/v2.17.x -> Prod AAB)"]
+    M1 --> M2["Milestone 2 (DEV)<br/>Themes + UI/UX Overhaul"]
+    M2 --> M3["Milestone 3 (DEV)<br/>Station/Remark + Logs Popup"]
+    M3 --> M4["Milestone 4 (DEV)<br/>Service Logs + Notifications"]
     M4 --> M5["Milestone 5 (DEV)<br/>v3.0.0+24 QA Build"]
-    M5 --> M6["Milestone 6 (DEV)<br/>v3.1.0+25: DEV Review<br/>Nav Reorg + Fuel Cards + Fixes"]
-    M6 --> QAGate["Full Test Suite + DEV APK QA"]
-    PlayDec8["~Dec 8, 2026:<br/>Apply Play Production (v2.17.2+23)"] --> QAGate
-    QAGate --> ProdV3["Prod v3.x.0 Free Release<br/>(Only After User Approval)"]
+    M5 --> M6["Milestone 6 (DEV)<br/>v3.1.0+25: Nav + Fuel Cards"]
+    M6 --> M7["Milestone 7 (DEV)<br/>v3.2.0+26: UI Polish +<br/>Service Types + PUC Page"]
+    M7 --> QAGate["Gate 2: All DEV Features<br/>Developed & Tested"]
+    PlayDec8["Gate 1 (~Dec 8, 2026):<br/>Google Approves Production"] --> ProdV3["Prod v3.x.0 Release<br/>(Only After Both Gates + User OK)"]
+    QAGate --> ProdV3
     ProdV3 --> PaidChat["Separate Paid Chat<br/>Play Billing + Fuel Logger Pro"]
 ```
 
 ### Ordered Development Milestones (DEV Only)
-1. **Step 0 — Backup Baseline:** `[DONE - Partial DB Export Pending User]` Tag `v2.17.2-build23`, pushed `backup/v2.17.2-pre-v3`, archived gitignored keystores/symbols/AAB locally in `FuelLogger-Backups\v2.17.2-build23\`, branched `feat/v3-dev`. *(User to export PROD & DEV SQL snapshots into `supabase\` before executing DEV SQL migrations.)*
+1. **Step 0 — Backup Baseline:** `[DONE — Verified 2026-11-26]` Tag `v2.17.2-build23`, pushed `backup/v2.17.2-pre-v3`, archived gitignored keystores/symbols/AAB plus PROD & pre-v3 DEV Supabase SQL/JSON/CSV snapshots locally in `FuelLogger-Backups\v2.17.2-build23\`, and branched `feat/v3-dev` while keeping `main` frozen for Track A PROD hotfixes.
 2. **Milestone 1 — Core Guardrails & Bugfix (`DEV`):** `[DONE on feat/v3-dev]`
    - [x] Fix `vehicles.is_active` (`set_active_vehicle` RPC in `001_v3_milestone1.sql` + partial index + `GarageProvider`).
    - [x] Implement 2-vehicle free limit (`user_entitlements` Option B grandfathering for existing accounts + `VehicleLimitDialog`).
@@ -356,5 +390,19 @@ flowchart LR
    - [x] **SQL:** Created `004_v3_fuel_cards.sql` + `005_v3_fix_new_user_trigger.sql` (including explicit `GRANT`s curing DEV 403 errors). *(Pending manual execution of `001`, `003`, `004`, `005` in DEV SQL Editor.)*
    - [x] **QA:** `dart analyze lib test` (`No issues found!`), `flutter test` (`23/23` tests passing across `milestone1_test.dart`, `milestone2_to_4_test.dart`, `milestone6_test.dart`), foreground DEV APK build (`app-dev-release.apk`, `57.95 MB`), and GitHub push on `feat/v3-dev`.
    - **Full Specification:** See [`dev_review_plan.md`](../../../.gemini/antigravity/brain/2a38ddad-6bda-483c-8101-61aa3489783a/dev_review_plan.md)
-8. **Post-Approval Only — Production & Separate Paid Chat:** `[PENDING USER APPROVAL]`
-   - [ ] Apply PROD Supabase migrations, update Play Console / Privacy Policy if needed, build PROD `.aab` (`--obfuscate --split-debug-info=symbols/`), then hand off Section 6 to the dedicated Paid Chat on `feat/pro-billing`.
+8. **Milestone 7 — DEV UI Polish, Service Types & Pollution Certificate (`v3.2.0+26`):** `[DONE on feat/v3-dev • Pending DEV SQL Run & Device QA]`
+   - [x] **P7.1 Home Page:** Shrank `"No fill-ups logged yet"` empty box to compact `_LatestServiceCard` layout; converted both empty-state `Log` actions to solid red-bg (`accentPrimary`) / white-text `Log` buttons; added optional `iconColor` on `MetricTile` so **Service Due** icon is **Yellow** (`#FFD54F` dark / `#F9A825` light) and **Fuel Card Limit** icon uses **Purple** (`#AB47BC` dark / `#8E24AA` light).
+   - [x] **P7.2 Bottom Nav Animations:** Animated all bottom nav items on selection (`AnimatedScale` + `AnimatedSwitcher` + expanding pill + `AnimatedDefaultTextStyle`) plus `+ Log` press scale micro-animation (`MainShell`).
+   - [x] **P7.3 Settings Consolidation & Version String:** Consolidated inline Vehicle Switcher (`Select Vehicle`) + Add New Vehicle (`Create`) + Delete Current Vehicle into the single **Vehicle Customization** card; enforced exact 8-card order (`1. Theme mode, 2. Vehicle customization, 3. Manage fuel types, 4. Notifications & reminders, 5. Data backup, 6. Account, 7. User guide, 8. Developer support`); updated `AppVersion.display` to `"Fuel Logger - #.#.# (#)"` (`"Fuel Logger - 3.2.0 (26)"`).
+   - [x] **P7.4 Service Type Dropdown (`General Repair` Default):** Removed 7 chips + extra text box in `ServiceFormBody`; replaced with `Service Type *` dropdown defaulting strictly to `'General Repair'`, with Add & Manage/Delete type options backed by `public.service_types` + `CacheService`.
+   - [x] **P7.5 Insights Service Top Alignment:** Replaced `Center` with `SingleChildScrollView -> Align(alignment: Alignment.topCenter)` in `CalculationsView` (plus `HomeView`, `UploadView`, `SettingsView`, `LogsView`, `FuelCardsView`, `PollutionCertificateView`) and wrapped card header titles in `Expanded` for narrow-screen overflow protection.
+   - [x] **P7.6 Logs Service Parity:** Removed top-right `+ Add` AppBar button and removed KPI tiles/headers from `_ServiceLogsTabContent` in `LogsView` so Service mirrors Fuel 1-to-1.
+   - [x] **P7.7 Utilities 2-Option Hub & Fuel Cards Page:** Converted `UtilitiesView` into a 2-option hub (**Fuel Cards** & **Pollution Certificate**); moved Fuel Cards to dedicated `FuelCardsView` without top-right `+ Add`/`Add Card` AppBar button; linked Home's Fuel Card tile directly to `FuelCardsView`.
+   - [x] **P7.8 Pollution Certificate (`PUC`) Page (`F10`):** Added per-vehicle `PollutionCertificateView` collecting PUC expiry date + renewal frequency (`3, 6, 12` months), live status countdown, 1-tap renew (`Renewed Today`), Notification alerts (`<=15d` / expired via `pucDue`), and offline cache; updated `PRIVACY_POLICY.md`.
+   - [x] **SQL (`006` Created):** Created [`supabase_migrations/006_v3_service_types_puc.sql`](supabase_migrations/006_v3_service_types_puc.sql) (`service_types` table + `vehicles.puc_expiry_date` & `puc_renewal_months` + GRANTs/RLS + updated `handle_new_user()` + `app_config` `3.2.0+26`). *(Pending manual execution in DEV SQL Editor — MCP confirmation auto-cancelled.)*
+   - [x] **QA:** Bumped version to `3.2.0+26` (`version.dart` + `pubspec.yaml`), updated `instructions.md`, verified `dart analyze lib test` (`No issues found!`) + `flutter test` (`+32: All tests passed!` including `test/milestone7_test.dart`), built foreground DEV APK (`app-dev-release.apk`, `58.2 MB`), and pushed to `origin/feat/v3-dev`.
+   - **Full Specification:** See [`milestone7_review_plan.md`](../../../.gemini/antigravity/brain/2a38ddad-6bda-483c-8101-61aa3489783a/milestone7_review_plan.md)
+9. **Post-Approval Only — Dual-Gate v3 Production Release & Separate Paid Chat:** `[PENDING GATES 1 & 2 + USER APPROVAL]`
+   - [ ] **Gate 1:** Google Play approves Production access for `com.fuellogger.app`.
+   - [ ] **Gate 2:** All planned v3 features are fully implemented and signed off on DEV (`com.fuellogger.app.dev`). *(Meanwhile, any urgent live-user issue on `v2.17.2` is fixed strictly via Track A `hotfix/v2.17.x` from `main`.)*
+   - [ ] Take a fresh pre-cutover PROD Supabase backup, confirm `AppVersion.buildNumber > latest PROD buildNumber`, apply `supabase_migrations/` (`001`–`006`+) idempotently on PROD Supabase, update Play Console / Privacy Policy if needed, build PROD `.aab` (`--obfuscate --split-debug-info=symbols/`), then hand off Section 6 to the dedicated Paid Chat on `feat/pro-billing`.

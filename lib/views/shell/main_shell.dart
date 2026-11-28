@@ -11,6 +11,7 @@ import '../home/home_view.dart';
 import '../logs/logs_view.dart';
 import '../notifications/notifications_view.dart';
 import '../upload/upload_view.dart';
+import '../utilities/pollution_certificate_view.dart';
 import '../utilities/utilities_view.dart';
 
 class MainShell extends StatefulWidget {
@@ -22,6 +23,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  bool _logPressed = false;
   final ValueNotifier<bool> _logsServiceModeNotifier = ValueNotifier<bool>(false);
   StreamSubscription<String?>? _notifSub;
 
@@ -67,6 +69,13 @@ class _MainShellState extends State<MainShell> {
         break;
       case 'utilities':
         _selectTab(3);
+        break;
+      case 'puc':
+        _selectTab(3);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const PollutionCertificateView()),
+        );
         break;
       case 'notifications':
         _openNotifications();
@@ -215,34 +224,42 @@ class _MainShellState extends State<MainShell> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: GestureDetector(
+                        onTapDown: (_) => setState(() => _logPressed = true),
+                        onTapUp: (_) => setState(() => _logPressed = false),
+                        onTapCancel: () => setState(() => _logPressed = false),
                         onTap: () => _openLogFillUp(),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: c.accentPrimary,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: c.accentPrimary.withOpacity(0.28),
-                                blurRadius: 10,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.add_rounded, color: Colors.white, size: 19),
-                              SizedBox(width: 4),
-                              Text(
-                                'Log',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
+                        child: AnimatedScale(
+                          scale: _logPressed ? 0.94 : 1.0,
+                          duration: const Duration(milliseconds: 110),
+                          curve: Curves.easeOut,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: c.accentPrimary,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: c.accentPrimary.withOpacity(0.28),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 3),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.add_rounded, color: Colors.white, size: 19),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Log',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -300,22 +317,56 @@ class _NavItem extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(selected ? activeIcon : icon, color: color, size: 22),
-            const SizedBox(height: 3),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              padding: EdgeInsets.symmetric(
+                horizontal: selected ? 11 : 6,
+                vertical: 3,
+              ),
+              decoration: BoxDecoration(
+                color: selected
+                    ? c.accentPrimary.withOpacity(0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: AnimatedScale(
+                scale: selected ? 1.12 : 1.0,
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeOutBack,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  transitionBuilder: (child, anim) => ScaleTransition(
+                    scale: anim,
+                    child: FadeTransition(opacity: anim, child: child),
+                  ),
+                  child: Icon(
+                    selected ? activeIcon : icon,
+                    key: ValueKey<bool>(selected),
+                    color: color,
+                    size: 21,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
             FittedBox(
               fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                maxLines: 1,
-                softWrap: false,
+              child: AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   color: color,
+                ),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  softWrap: false,
                 ),
               ),
             ),

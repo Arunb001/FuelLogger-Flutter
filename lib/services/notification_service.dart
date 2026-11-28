@@ -10,6 +10,7 @@ import '../models/fuel_log.dart';
 import '../models/service_log.dart';
 import '../models/telemetry_summary.dart';
 import '../models/vehicle.dart';
+import '../utils/formatters.dart';
 import 'cache_service.dart';
 import 'supabase_service.dart';
 
@@ -80,6 +81,8 @@ class NotificationService {
   static const int _idFillNudge = 1002;
   static const int _idServiceReminder = 2001;
   static const int _idServiceDueAlert = 2002;
+  static const int _idPucAlert = 2003;
+  static const int _idPucReminder = 2004;
 
   static String? consumePendingInitialPayload() {
     final p = _pendingInitialPayload;
@@ -345,7 +348,22 @@ class NotificationService {
         triggered: triggered,
       );
     } else {
-      await _plugin.cancel(id: _idServiceReminder);
+      try {
+        await _plugin.cancel(id: _idServiceReminder);
+      } catch (_) {}
+    }
+
+    // 1b. Pollution Certificate (PUC) Expiry Check
+    if (prefs.serviceDueReminders) {
+      await _evaluatePucReminders(
+        uid: uid,
+        vehicle: vehicle,
+        triggered: triggered,
+      );
+    } else {
+      try {
+        await _plugin.cancel(id: _idPucReminder);
+      } catch (_) {}
     }
 
     // 2. Fill-Up Check-In Nudge
@@ -369,6 +387,95 @@ class NotificationService {
         totalDistance: fuelSummary.totalDistance,
         triggered: triggered,
       );
+    }
+  }
+
+  /// Immediately re-evaluates PUC expiry alerts after user saves/renews PUC details.
+  static Future<void> evaluatePucForVehicle(Vehicle vehicle) async {
+    final uid = SupabaseService.userId;
+    if (uid.isEmpty) return;
+    final prefs = CacheService.getNotificationPreferences();
+    if (!prefs.enabled || !prefs.serviceDueReminders) {
+      try {
+        await _plugin.cancel(id: _idPucReminder);
+      } catch (_) {}
+      return;
+    }
+    final triggered = CacheService.getTriggeredAlertKeys(uid);
+    await _evaluatePucReminders(uid: uid, vehicle: vehicle, triggered: triggered);
+  }
+
+  static Future<void> _evaluatePucReminders({
+    required String uid,
+    required Vehicle vehicle,
+    required Set<String> triggered,
+  }) async {
+    final status = vehicle.pucStatus();
+    final days = vehicle.pucRemainingDays();
+    final expiryStr = vehicle.pucExpiryDate;
+
+    try {
+      await _plugin.cancel(id: _idPucReminder);
+    } catch (_) {}
+
+    if (status == PucStatus.notSet || expiryStr == null || days == null) {
+      return;
+    }
+
+    if (status == PucStatus.expired) {
+      final key = 'puc_expired_${vehicle.id}_$expiryStr';
+      if (!triggered.contains(key)) {
+        await CacheService.addTriggeredAlertKey(key, uid);
+        await _showNow(
+          osId: _idPucAlert,
+          inboxId: key,
+          title: '${vehicle.name}: PUC Expired',
+          body:
+              'Pollution Certificate expired on ${Formatters.shortDate(expiryStr)}. Renew at the earliest.',
+          type: AppNotificationType.pucDue,
+          isReminder: true,
+          payload: 'puc',
+          vehicleId: vehicle.id,
+        );
+      }
+      return;
+    }
+
+    if (status == PucStatus.expiringSoon) {
+      final key = 'puc_soon_${vehicle.id}_$expiryStr';
+      if (!triggered.contains(key)) {
+        await CacheService.addTriggeredAlertKey(key, uid);
+        await _showNow(
+          osId: _idPucAlert,
+          inboxId: key,
+          title: '${vehicle.name}: PUC Expiring Soon',
+          body: days == 0
+              ? 'Pollution Certificate expires today (${Formatters.shortDate(expiryStr)}).'
+              : 'Pollution Certificate expires in $days days (${Formatters.shortDate(expiryStr)}).',
+          type: AppNotificationType.pucDue,
+          isReminder: true,
+          payload: 'puc',
+          vehicleId: vehicle.id,
+        );
+      }
+      return;
+    }
+
+    final expiry = vehicle.pucExpiryDateTime;
+    if (expiry != null) {
+      final target = DateTime(expiry.year, expiry.month, expiry.day, 9)
+          .subtract(const Duration(days: Vehicle.pucExpiringSoonDays));
+      if (target.isAfter(DateTime.now())) {
+        await _scheduleInexact(
+          osId: _idPucReminder,
+          title: '${vehicle.name}: PUC Renewal Reminder',
+          body:
+              'Pollution Certificate expires on ${Formatters.shortDate(expiryStr)}.',
+          whenLocal: target,
+          isReminder: true,
+          payload: 'puc',
+        );
+      }
     }
   }
 

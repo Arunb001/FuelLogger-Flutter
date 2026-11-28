@@ -33,12 +33,13 @@ class _CalculationsViewState extends State<CalculationsView> {
         onRefresh: () => garage.loadGarage(),
         color: c.accentPrimary,
         backgroundColor: c.surfaceCard,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -104,9 +105,11 @@ class _FuelInsightsSection extends StatelessWidget {
           children: [
             Icon(Icons.analytics_outlined, color: c.accentPrimary, size: 20),
             const SizedBox(width: 8),
-            Text(
-              'Overall Telemetry',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary),
+            Expanded(
+              child: Text(
+                'Overall Telemetry',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary),
+              ),
             ),
           ],
         ),
@@ -220,9 +223,11 @@ class _FuelInsightsSection extends StatelessWidget {
           children: [
             Icon(Icons.local_gas_station, color: c.costAmber, size: 20),
             const SizedBox(width: 8),
-            Text(
-              'Breakdown by Fuel Type',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary),
+            Expanded(
+              child: Text(
+                'Breakdown by Fuel Type',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary),
+              ),
             ),
           ],
         ),
@@ -408,9 +413,11 @@ class _ServiceInsightsSection extends StatelessWidget {
           children: [
             Icon(Icons.build_circle_outlined, color: c.costAmber, size: 20),
             const SizedBox(width: 8),
-            Text(
-              'Maintenance Overview',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary),
+            Expanded(
+              child: Text(
+                'Maintenance Overview',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary),
+              ),
             ),
           ],
         ),
@@ -502,9 +509,11 @@ class _ServiceInsightsSection extends StatelessWidget {
           children: [
             Icon(Icons.category_outlined, color: c.distanceBlue, size: 20),
             const SizedBox(width: 8),
-            Text(
-              'Breakdown by Service Type',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary),
+            Expanded(
+              child: Text(
+                'Breakdown by Service Type',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary),
+              ),
             ),
           ],
         ),

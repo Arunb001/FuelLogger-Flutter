@@ -18,6 +18,7 @@ class CacheService {
   static const String _keyHomeSummary = 'cached_home_summary_';
   static const String _keyFuelTypes = 'cached_fuel_types';
   static const String _keyFuelColors = 'cached_fuel_colors';
+  static const String _keyServiceTypes = 'cached_service_types';
   static const String _keyFuelCardsPrefix = 'cached_fuel_cards_';
   static const String _keyUpdateConfig = 'cached_app_update_config';
   static const String _keyThemeMode = 'app_theme_mode';
@@ -129,14 +130,7 @@ class CacheService {
 
   static Future<void> saveCachedVehicles(List<Vehicle> list) async {
     try {
-      final jsonList = list.map((v) => {
-        'id': v.id,
-        'user_id': v.userId,
-        'name': v.name,
-        'is_active': v.isActive,
-        'icon_key': v.iconKey,
-        'color_key': v.colorKey,
-      }).toList();
+      final jsonList = list.map((v) => v.toJson()).toList();
       await _prefs?.setString(_keyCachedVehicles, jsonEncode(jsonList));
     } catch (_) {}
   }
@@ -221,6 +215,44 @@ class CacheService {
   static Future<void> saveCachedFuelTypes(List<String> types, [String? userId]) async {
     final key = _fuelTypesKey(userId);
     await _prefs?.setStringList(key, types);
+  }
+
+  // ── Cached Service Types (P7.4) ──
+
+  static String _serviceTypesKey([String? userId]) {
+    final uid = (userId ?? SupabaseService.userId).trim();
+    return uid.isNotEmpty ? '${_keyServiceTypes}_$uid' : _keyServiceTypes;
+  }
+
+  static List<String> getCachedServiceTypes([String? userId]) {
+    final list = _prefs?.getStringList(_serviceTypesKey(userId));
+    if (list != null && list.isNotEmpty) {
+      final cleaned = <String>[];
+      final seen = <String>{};
+      for (final raw in list) {
+        final t = raw.trim();
+        if (t.isNotEmpty && seen.add(t.toLowerCase())) {
+          cleaned.add(t);
+        }
+      }
+      if (cleaned.isNotEmpty) return cleaned;
+    }
+    return [ServiceLog.defaultServiceType];
+  }
+
+  static Future<void> saveCachedServiceTypes(List<String> types, [String? userId]) async {
+    final cleaned = <String>[];
+    final seen = <String>{};
+    for (final raw in types) {
+      final t = raw.trim();
+      if (t.isNotEmpty && seen.add(t.toLowerCase())) {
+        cleaned.add(t);
+      }
+    }
+    await _prefs?.setStringList(
+      _serviceTypesKey(userId),
+      cleaned.isNotEmpty ? cleaned : [ServiceLog.defaultServiceType],
+    );
   }
 
   /// Clears active vehicle session cache on sign out

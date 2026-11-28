@@ -18,6 +18,7 @@ import 'package:fuel_logger/views/logs/logs_view.dart';
 import 'package:fuel_logger/views/settings/settings_view.dart';
 import 'package:fuel_logger/views/shell/main_shell.dart';
 import 'package:fuel_logger/views/upload/upload_view.dart';
+import 'package:fuel_logger/views/utilities/fuel_cards_view.dart';
 import 'package:fuel_logger/views/utilities/utilities_view.dart';
 
 Widget _wrapWithProviders({
@@ -294,11 +295,12 @@ void main() {
 
       await tester.tap(find.text('Service'));
       await tester.pumpAndSettle();
-      expect(find.text('Service Name / Work Done *'), findsOneWidget);
+      expect(find.text('Service Type *'), findsOneWidget);
+      expect(find.text('General Repair'), findsOneWidget);
       expect(find.text('Save Service Record'), findsOneWidget);
     });
 
-    testWidgets('LogsView and UtilitiesView render Fuel/Service toggle and Fuel Cards cleanly',
+    testWidgets('LogsView and UtilitiesView/FuelCardsView render Fuel/Service toggle and Fuel Cards cleanly',
         (tester) async {
       await CacheService.saveCachedVehicles([
         Vehicle(id: 'local_v1', userId: '', name: 'Bike', isActive: true),
@@ -312,12 +314,18 @@ void main() {
 
       await tester.tap(find.text('Service'));
       await tester.pumpAndSettle();
-      expect(find.text('Service History (0)'), findsOneWidget);
+      expect(find.text('No Service Logs Recorded'), findsOneWidget);
 
       await tester.pumpWidget(
         _wrapWithProviders(garage: garage, child: const UtilitiesView()),
       );
       expect(find.text('Fuel Cards'), findsOneWidget);
+      expect(find.text('Pollution Certificate'), findsOneWidget);
+
+      await tester.pumpWidget(
+        _wrapWithProviders(garage: garage, child: const FuelCardsView()),
+      );
+      expect(find.text('Fuel Cards'), findsWidgets);
       expect(find.text('No Fuel Cards Added'), findsOneWidget);
     });
 

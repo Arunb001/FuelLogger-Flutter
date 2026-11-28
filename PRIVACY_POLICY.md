@@ -1,6 +1,6 @@
 # Privacy Policy for Fuel Logger
 
-**Last Updated:** November 27, 2026  
+**Last Updated:** November 28, 2026  
 **Effective Date:** November 23, 2026
 
 Welcome to **Fuel Logger** ("we", "our", or "us"). This Privacy Policy explains how we collect, use, store, and protect your information when you use our mobile application ("App"), developed by Arun Baalaji.
@@ -13,7 +13,7 @@ By installing and using Fuel Logger, you agree to the collection and use of info
 
 ### A. Information You Provide Directly
 * **Account Information:** When you sign up or log in using Email/Password or Google Sign-In, we collect your email address and authentication identifier to authenticate your account and synchronize your data across devices.
-* **Vehicle & Telemetry Data:** Vehicle nicknames, fuel fill-up logs (odometer readings, fuel volume in liters, fuel price/cost, fuel type, fuel density, optional fuel station name, optional personal remarks, optional link to a user-created fuel card label, and timestamps), optional fuel card names with user-entered monthly spending budgets and reset day, vehicle service & maintenance records (service date, odometer, service type, cost, workshop name, next service target, and notes), and custom fuel type preferences.
+* **Vehicle & Telemetry Data:** Vehicle nicknames, optional Pollution Certificate (PUC) expiry dates and renewal cycles, fuel fill-up logs (odometer readings, fuel volume in liters, fuel price/cost, fuel type, fuel density, optional fuel station name, optional personal remarks, optional link to a user-created fuel card label, and timestamps), optional fuel card names with user-entered monthly spending budgets and reset day, vehicle service & maintenance records (service date, odometer, service type, cost, workshop name, next service target, and notes), and custom fuel and service type preferences.
 
 ### B. Automatically Stored Local Data
 * **Local Offline Cache:** To provide fast, offline-first performance, vehicle preferences, recent telemetry calculations, fuel card budget progress, notification inbox history, reminder settings, and fuel types are cached locally on your device using Android private storage (`SharedPreferences`).

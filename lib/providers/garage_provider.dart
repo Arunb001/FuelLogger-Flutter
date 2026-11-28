@@ -22,6 +22,7 @@ class GarageProvider extends ChangeNotifier {
   String? _loadedUserId;
 
   List<String> _fuelTypes = CacheService.getCachedFuelTypes();
+  List<String> _serviceTypes = CacheService.getCachedServiceTypes();
 
   GarageProvider() {
     _initFromCache();
@@ -37,6 +38,7 @@ class GarageProvider extends ChangeNotifier {
     _summary = TelemetrySummary.empty();
     _serviceSummary = ServiceSummary.empty();
     _fuelTypes = CacheService.getCachedFuelTypes();
+    _serviceTypes = CacheService.getCachedServiceTypes();
     _loadedUserId = null;
     _isLoading = false;
     notifyListeners();
@@ -102,6 +104,7 @@ class GarageProvider extends ChangeNotifier {
       }
     }
     _fuelTypes = CacheService.getCachedFuelTypes();
+    _serviceTypes = CacheService.getCachedServiceTypes();
   }
 
   List<ServiceLog> _sortServiceLogsDesc(List<ServiceLog> items) {
@@ -139,6 +142,7 @@ class GarageProvider extends ChangeNotifier {
   ServiceSummary get serviceSummary => _serviceSummary;
   bool get isLoading => _isLoading;
   List<String> get fuelTypes => _fuelTypes;
+  List<String> get serviceTypes => _serviceTypes;
   bool get canAddVehicle => true;
 
   Future<void> loadGarage() async {
@@ -148,8 +152,9 @@ class GarageProvider extends ChangeNotifier {
     }
     _loadedUserId = currentUid;
 
-    // Refresh fuel types from cache
+    // Refresh fuel & service types from cache
     _fuelTypes = CacheService.getCachedFuelTypes();
+    _serviceTypes = CacheService.getCachedServiceTypes();
 
     // Only show loading indicator if we don't already have cached vehicles
     if (_vehicles.isEmpty) {
@@ -252,6 +257,7 @@ class GarageProvider extends ChangeNotifier {
       CacheService.saveCachedHomeSummary(vehicleId, 0.0, 0.0);
       CacheService.saveCachedLogs(vehicleId, []);
       await syncFuelTypesWithCloudAndLogs([]);
+      await syncServiceTypesWithCloudAndLogs(_serviceLogs);
       await NotificationService.evaluateTelemetryNotifications(
         vehicle: _activeVehicle!,
         fuelLogs: _fuelLogs,
@@ -269,8 +275,9 @@ class GarageProvider extends ChangeNotifier {
     _serviceSummary =
         ServiceSummary.compute(_serviceLogs, _summary.latestOdometer);
 
-    // Synchronize user fuel types from cloud DB and actual logs
+    // Synchronize user fuel & service types from cloud DB and actual logs
     await syncFuelTypesWithCloudAndLogs(rawLogs);
+    await syncServiceTypesWithCloudAndLogs(_serviceLogs);
 
     // Save home screen summary cache
     CacheService.saveCachedHomeSummary(
@@ -367,6 +374,88 @@ class GarageProvider extends ChangeNotifier {
       return true;
     }
     return false;
+  }
+
+  /// Saves per-vehicle Pollution Certificate (PUC) expiry date and renewal cycle.
+  Future<bool> updateVehiclePuc({
+    String? vehicleId,
+    String? pucExpiryDate,
+    required int pucRenewalMonths,
+  }) async {
+    final targetId = (vehicleId != null && vehicleId.isNotEmpty)
+        ? vehicleId
+        : (_activeVehicle?.id ?? '');
+    if (targetId.isEmpty) return false;
+
+    final cleanExpiry = (pucExpiryDate != null && pucExpiryDate.trim().isNotEmpty)
+        ? pucExpiryDate.trim()
+        : null;
+    final safeMonths = pucRenewalMonths > 0 ? pucRenewalMonths : 6;
+
+    final ok = await SupabaseService.updateVehiclePuc(
+      targetId,
+      pucExpiryDate: cleanExpiry,
+      pucRenewalMonths: safeMonths,
+    );
+    if (!ok) return false;
+
+    Vehicle? updatedVehicle;
+    _vehicles = _vehicles.map((v) {
+      if (v.id == targetId) {
+        updatedVehicle = v.copyWith(
+          pucExpiryDate: cleanExpiry,
+          clearPucExpiryDate: cleanExpiry == null,
+          pucRenewalMonths: safeMonths,
+        );
+        return updatedVehicle!;
+      }
+      return v;
+    }).toList();
+
+    if (_activeVehicle?.id == targetId && updatedVehicle != null) {
+      _activeVehicle = updatedVehicle;
+    }
+    await CacheService.saveCachedVehicles(_vehicles);
+
+    if (updatedVehicle != null) {
+      await NotificationService.evaluatePucForVehicle(updatedVehicle!);
+    }
+    notifyListeners();
+    return true;
+  }
+
+  /// Calculates next PUC expiry from current expiry (if valid) or today, and saves it.
+  Future<bool> renewVehiclePucToday({
+    String? vehicleId,
+    int? renewalMonths,
+    DateTime? now,
+  }) async {
+    final targetId = (vehicleId != null && vehicleId.isNotEmpty)
+        ? vehicleId
+        : (_activeVehicle?.id ?? '');
+    Vehicle? target;
+    for (final v in _vehicles) {
+      if (v.id == targetId) {
+        target = v;
+        break;
+      }
+    }
+    target ??= _activeVehicle;
+    if (target == null) return false;
+
+    final safeMonths = renewalMonths ?? target.pucRenewalMonths;
+    final nextExpiry = target.computeNextPucExpiry(
+      now: now,
+      overrideMonths: safeMonths,
+    );
+    final formatted =
+        '${nextExpiry.year.toString().padLeft(4, '0')}-${nextExpiry.month.toString().padLeft(2, '0')}-${nextExpiry.day.toString().padLeft(2, '0')}';
+
+    return updateVehiclePuc(
+      vehicleId: target.id,
+      pucExpiryDate: formatted,
+      pucRenewalMonths: safeMonths,
+    );
   }
 
   List<String> get stationSuggestions {
@@ -646,7 +735,9 @@ class GarageProvider extends ChangeNotifier {
       vehicleId: vehicleId,
       serviceDate: serviceDate,
       odometer: odometer,
-      serviceType: serviceType.trim().isEmpty ? 'Periodic Service' : serviceType.trim(),
+      serviceType: serviceType.trim().isEmpty
+          ? ServiceLog.defaultServiceType
+          : serviceType.trim(),
       serviceCenter: serviceCenter,
       totalCost: totalCost,
       nextDueKm: nextDueKm,
@@ -812,5 +903,80 @@ class GarageProvider extends ChangeNotifier {
     await CacheService.setFuelColorHex(name, hexColor, uid);
     await SupabaseService.updateCloudFuelTypeColor(name, hexColor);
     notifyListeners();
+  }
+
+  // ── Service Types CRUD & Sync (P7.4) ──
+
+  Future<void> syncServiceTypesWithCloudAndLogs(List<ServiceLog> logs) async {
+    final uid = SupabaseService.userId;
+    final cloudTypes = await SupabaseService.getCloudServiceTypes();
+
+    final List<String> result = [];
+    final Set<String> seen = {};
+
+    void addUnique(String raw) {
+      final clean = raw.trim();
+      if (clean.isNotEmpty && seen.add(clean.toLowerCase())) {
+        result.add(clean);
+      }
+    }
+
+    if (cloudTypes != null && cloudTypes.isNotEmpty) {
+      for (final item in cloudTypes) {
+        addUnique(item);
+      }
+    } else {
+      for (final item in CacheService.getCachedServiceTypes(uid)) {
+        addUnique(item);
+      }
+    }
+
+    for (final s in logs) {
+      final t = s.serviceType.trim();
+      if (t.isNotEmpty && seen.add(t.toLowerCase())) {
+        result.add(t);
+        await SupabaseService.addCloudServiceType(t);
+      }
+    }
+
+    if (result.isEmpty) {
+      result.add(ServiceLog.defaultServiceType);
+      await SupabaseService.addCloudServiceType(ServiceLog.defaultServiceType);
+    }
+
+    _serviceTypes = result;
+    await CacheService.saveCachedServiceTypes(_serviceTypes, uid);
+    notifyListeners();
+  }
+
+  bool addCustomServiceType(String name) {
+    final clean = name.trim();
+    if (clean.isEmpty) return false;
+    final duplicate = _serviceTypes.any(
+      (existing) => existing.toLowerCase() == clean.toLowerCase(),
+    );
+    if (duplicate) return false;
+
+    _serviceTypes.add(clean);
+    final uid = SupabaseService.userId;
+    CacheService.saveCachedServiceTypes(_serviceTypes, uid);
+    SupabaseService.addCloudServiceType(clean);
+    notifyListeners();
+    return true;
+  }
+
+  bool removeCustomServiceType(String name) {
+    if (_serviceTypes.length <= 1) return false;
+    final idx = _serviceTypes.indexWhere(
+      (existing) => existing.toLowerCase() == name.trim().toLowerCase(),
+    );
+    if (idx == -1) return false;
+
+    final removed = _serviceTypes.removeAt(idx);
+    final uid = SupabaseService.userId;
+    CacheService.saveCachedServiceTypes(_serviceTypes, uid);
+    SupabaseService.deleteCloudServiceType(removed);
+    notifyListeners();
+    return true;
   }
 }

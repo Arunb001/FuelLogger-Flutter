@@ -9,7 +9,7 @@
 
 ### Tech Stack & Architecture
 - **Framework**: Flutter (Channel Stable / Dart)
-- **Current DEV Version**: `Version - 3.1.0 (Build 25)` (`feat/v3-dev` branch; `main` frozen at `Version - 2.17.2 (Build 23)`)
+- **Current DEV Version**: `Fuel Logger - 3.2.0 (26)` (`feat/v3-dev` branch; `main` frozen at `Version - 2.17.2 (Build 23)`)
 - **Design System**: Light Theme (`#F5F7FB`) + AMOLED Dark Theme (`#111318`) with `ThemeProvider` (`System` / `Light` / `Dark`) and `AppSemanticColors` `ThemeExtension`
 - **State Management**: `Provider` (`GarageProvider`, `AuthProvider`, `ThemeProvider`)
 - **Backend / Database**: Supabase Cloud PostgreSQL (Dual Environment: Dev & Production) + Offline First Local Cache + SQL migrations in `supabase_migrations/`
@@ -417,6 +417,19 @@ Reviews and workflow updates:(refer screenshots, if it attached) *Don't erase th
     - [x] **Merged Fuel / Service Flows (`P5`, `P6`, `P7`)**: Extracted shared `ServiceFormBody`, `ServiceEditorSheet`, and `ServiceLogCard` (`lib/widgets/service_editor.dart`); added `Fuel` / `Service` `SegmentedButton` toggles on `UploadView`, `CalculationsView` (Insights), and `LogsView`. Reordered Fuel Insights tiles (`2B = Total Fuel Volume`, `4A = Best Mileage`, `4B = Lowest Mileage`) and added Maintenance Overview, `Service Spend Trend` chart, and Service Type Breakdown. Added optional Fuel Card selector on Fill-Up form & Edit Log dialog.
     - [x] **Fuel Cards & Utilities (`P8`)**: Added `FuelCard` model (`lib/models/fuel_card.dart`), `UtilitiesView` (`lib/views/utilities/utilities_view.dart`), `supabase_migrations/004_v3_fuel_cards.sql` (`fuel_cards` table, `set_primary_fuel_card` RPC, `fuel_logs.fuel_card_id` FK), monthly auto-reset (days `1–31` with short-month clamping), and automatic fill-up spend deduction/adjustment/refund in `GarageProvider`. Updated `PRIVACY_POLICY.md` for user-entered fuel card budget labels.
     - [x] **Verification & DEV Build (`3.1.0+25`)**: `dart analyze lib test` (`No issues found!`), `flutter test` (`+23: All tests passed!` including `test/milestone6_test.dart`), and built `build/app/outputs/flutter-apk/app-dev-release.apk` (`57.95 MB`).
+
+### Completed in Version 3.2.0 (Build 26 — DEV Branch `feat/v3-dev` Milestone 7):
+
+43. **Milestone 7 — DEV UI Polish, Consolidated Settings, Service Types & Pollution Certificate (`3.2.0+26`)**:
+    - [x] **Home Page Polish (`P7.1`)**: Converted `_LatestFillCard` empty state into a compact horizontal card matching `_LatestServiceCard`, replaced both empty-state `Log` actions with solid `accentPrimary` white-text `Log` buttons, and added `MetricTile.iconColor` so **Fuel Card Limit** uses Purple (`#AB47BC` / `#8E24AA`) and **Service Due** uses Yellow (`#FFD54F` / `#F9A825`) independently of metric value colors.
+    - [x] **Bottom Navigation Micro-Animations (`P7.2`)**: Added `AnimatedContainer` expanding pill highlights, `AnimatedScale` bounce, `AnimatedSwitcher` icon transitions, and `AnimatedDefaultTextStyle` to `_NavItem`, plus press-scale `AnimatedScale` feedback on the center `+ Log` action (`MainShell`).
+    - [x] **Consolidated Settings & Version String (`P7.3`)**: Merged inline `Select Vehicle` switcher, `Add New Vehicle` (`Create`), and `Delete Current Vehicle` into a single **Vehicle Customization** card; arranged Settings into the exact 8-card sequence; updated `AppVersion.display` & `fullDisplay` to `"Fuel Logger - 3.2.0 (26)"`.
+    - [x] **Streamlined Service Types (`P7.4`)**: Replaced the 7 static chips and redundant free-text field in `ServiceFormBody` with a `Service Type *` dropdown defaulting strictly to `'General Repair'`, backed by user-scoped `CacheService`, `public.service_types`, and a Manage dialog with Add/Delete (`>= 1` safeguard) support.
+    - [x] **Short-View Top Alignment & Narrow-Screen Safety (`P7.5`)**: Replaced vertical `Center` wrappers with `SingleChildScrollView -> Align(alignment: Alignment.topCenter)` in `CalculationsView`, `HomeView`, `UploadView`, `SettingsView`, `LogsView`, `FuelCardsView`, and `PollutionCertificateView`, and wrapped card header `Text`s in `Expanded` to prevent narrow-screen RenderFlex overflows.
+    - [x] **Logs Service Parity (`P7.6`)**: Removed the AppBar `+ Add` button and service KPI tiles/headers from `_ServiceLogsTabContent` in `LogsView` so Fuel and Service history tabs mirror each other cleanly.
+    - [x] **Utilities 2-Option Hub & Dedicated Fuel Cards (`P7.7`)**: Turned `UtilitiesView` into a 2-option hub (**Fuel Cards** & **Pollution Certificate**) with live status pills, moved Fuel Cards to `FuelCardsView` without any top-right `+ Add` AppBar button, and linked Home's `Fuel Card Limit` tile directly to `FuelCardsView`.
+    - [x] **Pollution Certificate Tracker (`P7.8` / `F10`)**: Extended `Vehicle` (`pucExpiryDate`, `pucRenewalMonths`, clamped month arithmetic, valid/expiringSoon/expired countdown helpers), `SupabaseService`, `GarageProvider`, and `NotificationService` (`AppNotificationType.pucDue` alerts & inbox routing); created `PollutionCertificateView` with `3 / 6 / 12 Months` preset chips and 1-tap `Renewed Today`; created `supabase_migrations/006_v3_service_types_puc.sql`; updated `PRIVACY_POLICY.md`.
+    - [x] **Verification & DEV Build (`3.2.0+26`)**: `dart analyze lib test` (`No issues found!`), `flutter test` (`+32: All tests passed!` including `test/milestone7_test.dart`), and built `build/app/outputs/flutter-apk/app-dev-release.apk` (`58.2 MB`, `61009898 bytes`).
 
 
 

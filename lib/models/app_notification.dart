@@ -3,6 +3,7 @@ enum AppNotificationType {
   welcome,
   serviceDue,
   serviceOverdue,
+  pucDue,
   fillUpNudge,
   milestone,
   announcement,
@@ -17,6 +18,8 @@ extension AppNotificationTypeX on AppNotificationType {
         return 'service_due';
       case AppNotificationType.serviceOverdue:
         return 'service_overdue';
+      case AppNotificationType.pucDue:
+        return 'puc_due';
       case AppNotificationType.fillUpNudge:
         return 'fill_up_nudge';
       case AppNotificationType.milestone:
@@ -34,6 +37,8 @@ extension AppNotificationTypeX on AppNotificationType {
         return 'Service Due';
       case AppNotificationType.serviceOverdue:
         return 'Overdue Service';
+      case AppNotificationType.pucDue:
+        return 'PUC Expiry';
       case AppNotificationType.fillUpNudge:
         return 'Fill-Up Reminder';
       case AppNotificationType.milestone:
@@ -51,6 +56,8 @@ extension AppNotificationTypeX on AppNotificationType {
         return AppNotificationType.serviceDue;
       case 'service_overdue':
         return AppNotificationType.serviceOverdue;
+      case 'puc_due':
+        return AppNotificationType.pucDue;
       case 'fill_up_nudge':
         return AppNotificationType.fillUpNudge;
       case 'milestone':

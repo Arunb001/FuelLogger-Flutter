@@ -13,14 +13,10 @@ class ServiceLog {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  static const String defaultServiceType = 'General Repair';
+
   static const List<String> commonTypes = [
-    'Periodic Service',
-    'Oil Change',
-    'Chain & Sprocket',
-    'Brake Service',
-    'Tyre Change',
-    'Battery',
-    'General Repair',
+    defaultServiceType,
   ];
 
   const ServiceLog({
@@ -52,7 +48,7 @@ class ServiceLog {
       vehicleId: json['vehicle_id']?.toString() ?? '',
       serviceDate: json['service_date']?.toString() ?? '',
       odometer: double.tryParse(json['odometer']?.toString() ?? '0') ?? 0.0,
-      serviceType: json['service_type']?.toString() ?? 'Periodic Service',
+      serviceType: _cleanText(json['service_type']) ?? defaultServiceType,
       serviceCenter: _cleanText(json['service_center']),
       totalCost: double.tryParse(json['total_cost']?.toString() ?? '0') ?? 0.0,
       nextDueKm: json['next_due_km'] != null

@@ -32,6 +32,7 @@ class _SettingsViewState extends State<SettingsView> {
 
   String _selectedIcon = 'bike';
   String _selectedColor = 'red';
+  String? _syncedVehicleId;
   NotificationPreferences _notifPrefs =
       CacheService.getNotificationPreferences();
 
@@ -39,6 +40,21 @@ class _SettingsViewState extends State<SettingsView> {
   void initState() {
     super.initState();
     final garage = context.read<GarageProvider>();
+    _syncVehicleFields(garage);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final garage = context.watch<GarageProvider>();
+    final activeId = garage.activeVehicle?.id;
+    if (activeId != null && activeId != _syncedVehicleId) {
+      _syncVehicleFields(garage);
+    }
+  }
+
+  void _syncVehicleFields(GarageProvider garage) {
+    _syncedVehicleId = garage.activeVehicle?.id;
     _renameController.text = garage.activeVehicleName;
     _selectedIcon = garage.activeVehicle?.iconKey ?? 'bike';
     _selectedColor = garage.activeVehicle?.colorKey ?? 'red';
@@ -356,15 +372,16 @@ class _SettingsViewState extends State<SettingsView> {
       appBar: AppBar(
         title: const Text('Settings & Garage'),
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Appearance (Theme Mode)
+                // 1. Theme Mode
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -375,7 +392,9 @@ class _SettingsViewState extends State<SettingsView> {
                           children: [
                             Icon(Icons.contrast_rounded, color: c.distanceBlue, size: 20),
                             const SizedBox(width: 8),
-                            Text('Theme Mode', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: c.textPrimary)),
+                            Expanded(
+                              child: Text('Theme Mode', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: c.textPrimary)),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 6),
@@ -414,112 +433,7 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
                 const SizedBox(height: 14),
 
-                // Notifications & Reminders (F6)
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.notifications_active_outlined,
-                                color: c.mileageGreen, size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Notifications & Reminders',
-                              style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: c.textPrimary),
-                            ),
-                            const Spacer(),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const NotificationsView(),
-                                  ),
-                                );
-                              },
-                              child: const Text('Inbox'),
-                            ),
-                          ],
-                        ),
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Enable Notifications'),
-                          subtitle: const Text(
-                            'Master switch for reminders, milestones & updates',
-                            style: TextStyle(fontSize: 12),
-                          ),
-                          value: _notifPrefs.enabled,
-                          onChanged: (val) async {
-                            final next = _notifPrefs.copyWith(enabled: val);
-                            setState(() => _notifPrefs = next);
-                            await NotificationService.applyPreferences(next);
-                          },
-                        ),
-                        if (_notifPrefs.enabled) ...[
-                          Divider(color: c.subtleBorder, height: 12),
-                          SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('Service Due Reminders'),
-                            subtitle: const Text(
-                              'Alert when maintenance is within 500 km or 7 days',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                            value: _notifPrefs.serviceDueReminders,
-                            onChanged: (val) async {
-                              final next = _notifPrefs.copyWith(
-                                  serviceDueReminders: val);
-                              setState(() => _notifPrefs = next);
-                              await NotificationService.applyPreferences(next);
-                            },
-                          ),
-                          SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                                'Fill-Up Nudge (${_notifPrefs.fillUpNudgeDays}d idle)'),
-                            subtitle: const Text(
-                              'Gentle check-in if no fill-up logged in 2 weeks',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                            value: _notifPrefs.fillUpNudge,
-                            onChanged: (val) async {
-                              final next =
-                                  _notifPrefs.copyWith(fillUpNudge: val);
-                              setState(() => _notifPrefs = next);
-                              await NotificationService.applyPreferences(next);
-                            },
-                          ),
-                          SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('Milestones & Wishes'),
-                            subtitle: const Text(
-                              'Odometer milestones and occasional festive wishes',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                            value: _notifPrefs.wishesAndTips &&
-                                _notifPrefs.milestones,
-                            onChanged: (val) async {
-                              final next = _notifPrefs.copyWith(
-                                wishesAndTips: val,
-                                milestones: val,
-                              );
-                              setState(() => _notifPrefs = next);
-                              await NotificationService.applyPreferences(next);
-                            },
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // Card 1: Vehicle Customization
+                // 2. Vehicle Customization (Inline Switch + Edit + Add + Delete)
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -530,10 +444,63 @@ class _SettingsViewState extends State<SettingsView> {
                           children: [
                             Icon(Icons.palette_outlined, color: c.accentPrimary, size: 20),
                             const SizedBox(width: 8),
-                            Text('Vehicle Customization', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: c.textPrimary)),
+                            Expanded(
+                              child: Text('Vehicle Customization', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: c.textPrimary)),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 14),
+
+                        if (garage.vehicles.isNotEmpty) ...[
+                          DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            value: garage.vehicles.any((v) => v.id == garage.activeVehicle?.id)
+                                ? garage.activeVehicle!.id
+                                : garage.vehicles.first.id,
+                            decoration: const InputDecoration(
+                              labelText: 'Select Vehicle',
+                              prefixIcon: Icon(Icons.garage_outlined, size: 18),
+                            ),
+                            items: garage.vehicles.map((v) {
+                              final vIcon = AppTheme.vehicleIcons[v.iconKey] ?? Icons.two_wheeler;
+                              final vColor = AppTheme.vehiclePrimaryColors[v.colorKey] ?? c.accentPrimary;
+                              return DropdownMenuItem<String>(
+                                value: v.id,
+                                child: Row(
+                                  children: [
+                                    Icon(vIcon, size: 17, color: vColor),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        v.name,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontWeight: v.id == garage.activeVehicle?.id
+                                              ? FontWeight.w700
+                                              : FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (selectedId) async {
+                              if (selectedId == null || selectedId == garage.activeVehicle?.id) {
+                                return;
+                              }
+                              final chosen = garage.vehicles.firstWhere(
+                                (v) => v.id == selectedId,
+                              );
+                              HapticFeedback.selectionClick();
+                              await garage.switchVehicle(chosen);
+                              if (mounted) {
+                                setState(() => _syncVehicleFields(garage));
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                        ],
 
                         TextField(
                           controller: _renameController,
@@ -601,59 +568,90 @@ class _SettingsViewState extends State<SettingsView> {
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
 
-                // Card 2: Add New Vehicle
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+                        Divider(color: c.subtleBorder, height: 28),
+
+                        Text(
+                          'Add New Vehicle',
+                          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: c.textPrimary),
+                        ),
+                        const SizedBox(height: 8),
                         Row(
                           children: [
-                            Icon(Icons.add_circle_outline, color: c.mileageGreen, size: 20),
-                            const SizedBox(width: 8),
                             Expanded(
-                              child: Text('Add New Vehicle', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: c.textPrimary)),
+                              child: TextField(
+                                controller: _addVehicleController,
+                                textCapitalization: TextCapitalization.words,
+                                decoration: const InputDecoration(
+                                  labelText: 'New Vehicle Name',
+                                  hintText: 'e.g. KTM Duke 390',
+                                  prefixIcon: Icon(Icons.add_circle_outline, size: 18),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            ElevatedButton(
+                              onPressed: _addNewVehicle,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: c.mileageGreen,
+                                foregroundColor: context.isDarkTheme ? Colors.black : Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              ),
+                              child: Text(
+                                'Create',
+                                style: TextStyle(
+                                  color: context.isDarkTheme ? Colors.black : Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 10),
-                        Text('Create a new vehicle profile in your garage.', style: TextStyle(fontSize: 12, color: c.textSecondary)),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _addVehicleController,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(
-                            labelText: 'New Vehicle Name',
-                            hintText: 'e.g. KTM Duke 390',
-                            prefixIcon: Icon(Icons.two_wheeler, size: 18),
-                          ),
-                        ),
                         const SizedBox(height: 14),
-                        ElevatedButton.icon(
-                          onPressed: _addNewVehicle,
-                          icon: Icon(
-                            Icons.add,
-                            size: 18,
-                            color: context.isDarkTheme ? Colors.black : Colors.white,
+
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.redAccent.withOpacity(0.25)),
                           ),
-                          label: Text(
-                            'Create Vehicle',
-                            style: TextStyle(
-                              color: context.isDarkTheme ? Colors.black : Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: c.mileageGreen,
-                            foregroundColor: context.isDarkTheme ? Colors.black : Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Delete Current Vehicle',
+                                      style: TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.redAccent,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Remove \'${garage.activeVehicleName}\' permanently',
+                                      style: TextStyle(fontSize: 11, color: c.textSecondary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              OutlinedButton(
+                                onPressed: _showDeleteVehicleDialog,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.redAccent,
+                                  side: const BorderSide(color: Colors.redAccent),
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                ),
+                                child: const Text(
+                                  'Delete',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -662,7 +660,7 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
                 const SizedBox(height: 14),
 
-                // Card 3: Manage Fuel Types
+                // 3. Manage Fuel Types
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -673,7 +671,9 @@ class _SettingsViewState extends State<SettingsView> {
                           children: [
                             Icon(Icons.local_gas_station, color: c.costAmber, size: 20),
                             const SizedBox(width: 8),
-                            Text('Manage Fuel Types', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: c.textPrimary)),
+                            Expanded(
+                              child: Text('Manage Fuel Types', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: c.textPrimary)),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -747,7 +747,113 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
                 const SizedBox(height: 14),
 
-                // Card 4: CSV Transfer
+                // 4. Notifications & Reminders (F6)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.notifications_active_outlined,
+                                color: c.mileageGreen, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Notifications & Reminders',
+                                style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: c.textPrimary),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const NotificationsView(),
+                                  ),
+                                );
+                              },
+                              child: const Text('Inbox'),
+                            ),
+                          ],
+                        ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Enable Notifications'),
+                          subtitle: const Text(
+                            'Master switch for reminders, milestones & updates',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          value: _notifPrefs.enabled,
+                          onChanged: (val) async {
+                            final next = _notifPrefs.copyWith(enabled: val);
+                            setState(() => _notifPrefs = next);
+                            await NotificationService.applyPreferences(next);
+                          },
+                        ),
+                        if (_notifPrefs.enabled) ...[
+                          Divider(color: c.subtleBorder, height: 12),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Service Due Reminders'),
+                            subtitle: const Text(
+                              'Alert when maintenance or PUC is due soon',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            value: _notifPrefs.serviceDueReminders,
+                            onChanged: (val) async {
+                              final next = _notifPrefs.copyWith(
+                                  serviceDueReminders: val);
+                              setState(() => _notifPrefs = next);
+                              await NotificationService.applyPreferences(next);
+                            },
+                          ),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                                'Fill-Up Nudge (${_notifPrefs.fillUpNudgeDays}d idle)'),
+                            subtitle: const Text(
+                              'Gentle check-in if no fill-up logged in 2 weeks',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            value: _notifPrefs.fillUpNudge,
+                            onChanged: (val) async {
+                              final next =
+                                  _notifPrefs.copyWith(fillUpNudge: val);
+                              setState(() => _notifPrefs = next);
+                              await NotificationService.applyPreferences(next);
+                            },
+                          ),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Milestones & Wishes'),
+                            subtitle: const Text(
+                              'Odometer milestones and occasional festive wishes',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            value: _notifPrefs.wishesAndTips &&
+                                _notifPrefs.milestones,
+                            onChanged: (val) async {
+                              final next = _notifPrefs.copyWith(
+                                wishesAndTips: val,
+                                milestones: val,
+                              );
+                              setState(() => _notifPrefs = next);
+                              await NotificationService.applyPreferences(next);
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // 5. Data Backup & CSV Transfer
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -758,7 +864,9 @@ class _SettingsViewState extends State<SettingsView> {
                           children: [
                             Icon(Icons.import_export, color: c.distanceBlue, size: 22),
                             const SizedBox(width: 8),
-                            Text('Data Backup & CSV Transfer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: c.textPrimary)),
+                            Expanded(
+                              child: Text('Data Backup & CSV Transfer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: c.textPrimary)),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -798,39 +906,7 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
                 const SizedBox(height: 14),
 
-                // Card 5: Delete Vehicle
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Delete Current Vehicle', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.redAccent)),
-                              const SizedBox(height: 3),
-                              Text('Permanently remove \'${garage.activeVehicleName}\'', style: TextStyle(fontSize: 11, color: c.textSecondary)),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
-                          onPressed: _showDeleteVehicleDialog,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red.shade900,
-                            foregroundColor: Colors.white,
-                          ),
-                          child: const Text('Delete', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // Card 6: Account
+                // 6. Account
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -841,7 +917,9 @@ class _SettingsViewState extends State<SettingsView> {
                           children: [
                             Icon(Icons.person, color: c.distanceBlue, size: 20),
                             const SizedBox(width: 8),
-                            Text('Account', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: c.textPrimary)),
+                            Expanded(
+                              child: Text('Account', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: c.textPrimary)),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -881,7 +959,7 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
                 const SizedBox(height: 14),
 
-                // User Guide
+                // 7. User Guide & FAQs
                 Card(
                   child: InkWell(
                     borderRadius: BorderRadius.circular(18),
@@ -923,7 +1001,7 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
                 const SizedBox(height: 14),
 
-                // Developer Support
+                // 8. Developer Support
                 Card(
                   child: InkWell(
                     borderRadius: BorderRadius.circular(18),
